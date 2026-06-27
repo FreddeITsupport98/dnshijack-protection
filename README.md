@@ -49,7 +49,9 @@ Here is the exact command:
 Set-ExecutionPolicy RemoteSigned
 
 
-## Trade-Offs & Known Limitations
+
+
+### Trade-Offs & Known Limitations
 
 While this script provides a high-security perimeter for your network configuration, deploying a "Zero Trust" registry lock introduces some friction into daily operations. Please be aware of the following scenarios before deployment:
 
