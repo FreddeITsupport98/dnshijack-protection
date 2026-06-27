@@ -16,7 +16,7 @@ function Write-Log {
     Write-Host "[$Type] $Message" -ForegroundColor $Color
 }
 
-Write-Log -Message "Experimental targeted script launched." -Type "SYSTEM" -Color Cyan
+Write-Log -Message "Experimental targeted script launched (IPv4 & IPv6)." -Type "SYSTEM" -Color Cyan
 
 $Adapters = Get-NetAdapter -ErrorAction SilentlyContinue
 
@@ -28,31 +28,38 @@ $SidSystem = New-Object System.Security.Principal.SecurityIdentifier("S-1-5-18")
 function Get-DNSLockStatus {
     $AllLocked = $true
     $AnyLocked = $false
-    
+
     Write-Host "Adapter Lockdown Status (Targeted SIDs):" -ForegroundColor Gray
     foreach ($Adapter in $Adapters) {
         $Guid = $Adapter.InterfaceGuid
-        $SubKeyPath = "SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$Guid"
         $AdapterLocked = $false
-        
-        try {
-            $RegKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($SubKeyPath, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree, [System.Security.AccessControl.RegistryRights]::ReadPermissions)
-            if ($RegKey) {
-                $Acl = $RegKey.GetAccessControl()
-                foreach ($Rule in $Acl.Access) {
-                    try {
-                        $RuleSid = $Rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier])
-                        if (($RuleSid.Value -eq "S-1-5-32-544" -or $RuleSid.Value -eq "S-1-5-18") -and $Rule.AccessControlType -eq "Deny") {
-                            $AdapterLocked = $true
-                        }
-                    } catch {}
+
+        # Array of subkeys to check for both IPv4 and IPv6
+        $SubKeyPaths = @(
+            "SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$Guid",
+            "SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces\$Guid"
+        )
+
+        foreach ($SubKeyPath in $SubKeyPaths) {
+            try {
+                $RegKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($SubKeyPath, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree, [System.Security.AccessControl.RegistryRights]::ReadPermissions)
+                if ($RegKey) {
+                    $Acl = $RegKey.GetAccessControl()
+                    foreach ($Rule in $Acl.Access) {
+                        try {
+                            $RuleSid = $Rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier])
+                            if (($RuleSid.Value -eq "S-1-5-32-544" -or $RuleSid.Value -eq "S-1-5-18") -and $Rule.AccessControlType -eq "Deny") {
+                                $AdapterLocked = $true
+                            }
+                        } catch {}
+                    }
+                    $RegKey.Close()
                 }
-                $RegKey.Close()
-            }
-        } catch {}
-        
+            } catch {}
+        }
+
         if ($AdapterLocked) {
-            Write-Host "  [X] $($Adapter.Name) -> LOCKED (Admin/SYSTEM)" -ForegroundColor Red
+            Write-Host "  [X] $($Adapter.Name) -> LOCKED (IPv4 & IPv6)" -ForegroundColor Red
             $AnyLocked = $true
         } else {
             Write-Host "  [ ] $($Adapter.Name) -> UNLOCKED" -ForegroundColor Green
@@ -67,30 +74,36 @@ function Get-DNSLockStatus {
 }
 
 function Enable-DNSLock {
-    Write-Log -Message "Initiating Targeted Lock (Admin/SYSTEM Only)..." -Type "ACTION" -Color Yellow
-    
+    Write-Log -Message "Initiating Targeted Lock (Admin/SYSTEM Only on IPv4 & IPv6)..." -Type "ACTION" -Color Yellow
+
     foreach ($Adapter in $Adapters) {
         $Guid = $Adapter.InterfaceGuid
-        $SubKeyPath = "SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$Guid"
-        
-        try {
-            $RegKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($SubKeyPath, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [System.Security.AccessControl.RegistryRights]::ChangePermissions)
-            if ($RegKey) {
-                $Acl = $RegKey.GetAccessControl()
-                
-                # Apply Deny rules specifically to Admin and SYSTEM
-                $Rule1 = New-Object System.Security.AccessControl.RegistryAccessRule($SidAdmin, "SetValue", "Deny")
-                $Rule2 = New-Object System.Security.AccessControl.RegistryAccessRule($SidSystem, "SetValue", "Deny")
-                
-                $Acl.AddAccessRule($Rule1)
-                $Acl.AddAccessRule($Rule2)
-                
-                $RegKey.SetAccessControl($Acl)
-                $RegKey.Close()
-                Write-Log -Message "Applied targeted lock for adapter: $($Adapter.Name)" -Type "SUCCESS" -Color Green
+        $SubKeyPaths = @(
+            "SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$Guid",
+            "SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces\$Guid"
+        )
+
+        foreach ($SubKeyPath in $SubKeyPaths) {
+            $Proto = if ($SubKeyPath -like "*Tcpip6*") { "IPv6" } else { "IPv4" }
+            try {
+                $RegKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($SubKeyPath, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [System.Security.AccessControl.RegistryRights]::ChangePermissions)
+                if ($RegKey) {
+                    $Acl = $RegKey.GetAccessControl()
+
+                    # Apply Deny rules specifically to Admin and SYSTEM
+                    $Rule1 = New-Object System.Security.AccessControl.RegistryAccessRule($SidAdmin, "SetValue", "Deny")
+                    $Rule2 = New-Object System.Security.AccessControl.RegistryAccessRule($SidSystem, "SetValue", "Deny")
+
+                    $Acl.AddAccessRule($Rule1)
+                    $Acl.AddAccessRule($Rule2)
+
+                    $RegKey.SetAccessControl($Acl)
+                    $RegKey.Close()
+                    Write-Log -Message "Applied targeted lock ($Proto) for adapter: $($Adapter.Name)" -Type "SUCCESS" -Color Green
+                }
+            } catch {
+                Write-Log -Message "Failed to lock $Proto adapter $($Adapter.Name): $_" -Type "ERROR" -Color Red
             }
-        } catch {
-            Write-Log -Message "Failed to lock adapter $($Adapter.Name): $_" -Type "ERROR" -Color Red
         }
     }
 
@@ -106,35 +119,41 @@ function Enable-DNSLock {
 
 function Disable-DNSLock {
     Write-Log -Message "Initiating Unlock..." -Type "ACTION" -Color Yellow
-    
+
     foreach ($Adapter in $Adapters) {
         $Guid = $Adapter.InterfaceGuid
-        $SubKeyPath = "SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$Guid"
-        
-        try {
-            $RegKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($SubKeyPath, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [System.Security.AccessControl.RegistryRights]::ChangePermissions)
-            if ($RegKey) {
-                $Acl = $RegKey.GetAccessControl()
-                $RulesToRemove = @()
-                
-                foreach ($Rule in $Acl.Access) {
-                    try {
-                        $RuleSid = $Rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier])
-                        # Remove locks for Admin, SYSTEM, AND the old Everyone rule just in case it was left behind
-                        if (($RuleSid.Value -eq "S-1-5-32-544" -or $RuleSid.Value -eq "S-1-5-18" -or $RuleSid.Value -eq "S-1-1-0") -and $Rule.AccessControlType -eq "Deny") {
-                            $RulesToRemove += $Rule
-                        }
-                    } catch {}
+        $SubKeyPaths = @(
+            "SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$Guid",
+            "SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces\$Guid"
+        )
+
+        foreach ($SubKeyPath in $SubKeyPaths) {
+            $Proto = if ($SubKeyPath -like "*Tcpip6*") { "IPv6" } else { "IPv4" }
+            try {
+                $RegKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($SubKeyPath, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [System.Security.AccessControl.RegistryRights]::ChangePermissions)
+                if ($RegKey) {
+                    $Acl = $RegKey.GetAccessControl()
+                    $RulesToRemove = @()
+
+                    foreach ($Rule in $Acl.Access) {
+                        try {
+                            $RuleSid = $Rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier])
+                            # Remove locks for Admin, SYSTEM, AND the old Everyone rule just in case it was left behind
+                            if (($RuleSid.Value -eq "S-1-5-32-544" -or $RuleSid.Value -eq "S-1-5-18" -or $RuleSid.Value -eq "S-1-1-0") -and $Rule.AccessControlType -eq "Deny") {
+                                $RulesToRemove += $Rule
+                            }
+                        } catch {}
+                    }
+
+                    if ($RulesToRemove.Count -gt 0) {
+                        foreach ($Rule in $RulesToRemove) { $Acl.RemoveAccessRule($Rule) }
+                        $RegKey.SetAccessControl($Acl)
+                        Write-Log -Message "Unlocked $Proto Registry for adapter: $($Adapter.Name)" -Type "SUCCESS" -Color Green
+                    }
+                    $RegKey.Close()
                 }
-                
-                if ($RulesToRemove.Count -gt 0) {
-                    foreach ($Rule in $RulesToRemove) { $Acl.RemoveAccessRule($Rule) }
-                    $RegKey.SetAccessControl($Acl)
-                    Write-Log -Message "Unlocked Registry for adapter: $($Adapter.Name)" -Type "SUCCESS" -Color Green
-                }
-                $RegKey.Close()
-            }
-        } catch {}
+            } catch {}
+        }
     }
 
     if (Test-Path $GpoPath) {
@@ -142,7 +161,7 @@ function Disable-DNSLock {
         Remove-ItemProperty -Path $GpoPath -Name "NC_LanChangeProperties" -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $GpoPath -Name "NC_AllowAdvancedTCPIPConfig" -ErrorAction SilentlyContinue
     }
-    
+
     C:\Windows\System32\gpupdate.exe /force | Out-Null
     Write-Log -Message "System restored to default." -Type "SUCCESS" -Color Green
 }
@@ -159,9 +178,9 @@ do {
     Write-Host "3. Refresh Status Check"
     Write-Host "4. Exit"
     Write-Host ""
-    
+
     $Choice = Read-Host "Select an option (1-4)"
-    
+
     switch ($Choice) {
         "1" { Enable-DNSLock; Start-Sleep -Seconds 4 }
         "2" { Disable-DNSLock; Start-Sleep -Seconds 4 }
