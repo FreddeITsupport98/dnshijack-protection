@@ -37,7 +37,9 @@ A robust, enterprise-grade PowerShell security tool designed to permanently lock
 2. Execute the script:
    ```powershell
    .\DNS_Lockdown.ps1
-   ### Understanding `Set-ExecutionPolicy RemoteSigned`
+   
+
+### Understanding `Set-ExecutionPolicy RemoteSigned`
 
 By default, Windows has a strict security mechanism enabled (called `Restricted`) that prevents *any* PowerShell scripts from running, even the ones you write yourself. This command changes that rule to a much more practical, balanced security setting.
 
