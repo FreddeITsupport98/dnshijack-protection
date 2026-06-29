@@ -76,6 +76,7 @@ if (-not $Principal.IsInRole($Role)) {
             if ($ChildGameRequest) { $ArgsString += " -ChildGameRequest" }
             if ($ContinueParentMode) { $ArgsString += " -ContinueParentMode" }
             if ($LockNow) { $ArgsString += " -LockNow" }
+            if ($ProgramScan) { $ArgsString += " -ProgramScan" }
             if ($SetScreenTime) { $ArgsString += " -SetScreenTime" }
             if ($ScreenTimeStatus) { $ArgsString += " -ScreenTimeStatus" }
             if ($GrantBrowserTime) { $ArgsString += " -GrantBrowserTime" }
@@ -402,12 +403,21 @@ function New-ChildAccount {
     }
 
     # Create passwordless account
+    $Created = $false
     try {
         New-LocalUser -Name $ChildUser -NoPassword -Description "OS-Guard managed child account (passwordless)" -ErrorAction Stop | Out-Null
         Write-Log -Message "Created PASSWORDLESS child account '$ChildUser'." -Type "SUCCESS" -Color Green
+        $Created = $true
     } catch {
-        Write-Log -Message "Failed to create child account '$ChildUser': $_" -Type "ERROR" -Color Red
-        return $false
+        Write-Log -Message "New-LocalUser failed for '$ChildUser': $_. Trying net user fallback..." -Type "WARN" -Color Yellow
+        $netResult = net user $ChildUser /add /active:yes /passwordreq:no 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log -Message "Created child account '$ChildUser' via net user." -Type "SUCCESS" -Color Green
+            $Created = $true
+        } else {
+            Write-Log -Message "Failed to create child account '$ChildUser' via net user: $netResult" -Type "ERROR" -Color Red
+            return $false
+        }
     }
 
     # Add to standard Users group
@@ -415,7 +425,8 @@ function New-ChildAccount {
         Add-LocalGroupMember -Group "Users" -Member $ChildUser -ErrorAction Stop
         Write-Log -Message "Added '$ChildUser' to Users group." -Type "INFO" -Color Gray
     } catch {
-        Write-Log -Message "Could not add '$ChildUser' to Users group: $_" -Type "WARN" -Color Yellow
+        Write-Log -Message "Add-LocalGroupMember failed for Users: $_. Trying net localgroup fallback..." -Type "WARN" -Color Yellow
+        net localgroup Users $ChildUser /add 2>&1 | Out-Null
     }
 
     # Prevent the child from changing or setting a password (lockdown reinforcement)
@@ -858,7 +869,7 @@ function Harden-ScreenTimeFile {
         $ChildSidValue = Get-ChildSid
         if ($ChildSidValue) {
             $ChildSidObj = New-Object System.Security.Principal.SecurityIdentifier($ChildSidValue)
-            $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($ChildSidObj, "Read", "None", "None", "Deny")))
+            $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($ChildSidObj, "Read", "None", "None", "Allow")))
         }
         Set-Acl -Path $FilePath -AclObject $Acl -ErrorAction Stop
     } catch {
@@ -951,7 +962,11 @@ function Test-ScreenTimeLimit {
         $EndTime = [DateTime]::ParseExact($Config.DailyEnd, "HH:mm", $null)
         $StartToday = $Now.Date.Add($StartTime.TimeOfDay)
         $EndToday = $Now.Date.Add($EndTime.TimeOfDay)
-        if ($Now -lt $StartToday -or $Now -gt $EndToday) { return $true }
+        if ($StartToday -le $EndToday) {
+            if ($Now -lt $StartToday -or $Now -gt $EndToday) { return $true }
+        } else {
+            if ($Now -gt $EndToday -and $Now -lt $StartToday) { return $true }
+        }
     } catch {
         Write-Log -Message "ScreenTime config has invalid time format." -Type "WARN" -Color Yellow
     }
@@ -1008,14 +1023,27 @@ function Show-SetScreenTimeDialog {
     Write-Host "=====================================================" -ForegroundColor Cyan
     if (-not (Test-ParentPassword)) { return }
     Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
-    $Start = [Microsoft.VisualBasic.Interaction]::InputBox("Daily allowed start time (HH:mm):", "Screen Time", "08:00", -1, -1)
+    $ExistingConfig = Get-ScreenTimeConfig
+    $DefaultStart = if ($ExistingConfig -and $ExistingConfig.DailyStart) { $ExistingConfig.DailyStart } else { "08:00" }
+    $DefaultEnd = if ($ExistingConfig -and $ExistingConfig.DailyEnd) { $ExistingConfig.DailyEnd } else { "20:00" }
+    $DefaultDailyMax = if ($ExistingConfig -and $ExistingConfig.DailyMaxMinutes) { [string]$ExistingConfig.DailyMaxMinutes } else { "120" }
+    $DefaultBrowserMax = if ($ExistingConfig -and $ExistingConfig.BrowserMaxMinutes) { [string]$ExistingConfig.BrowserMaxMinutes } else { "60" }
+    $Start = [Microsoft.VisualBasic.Interaction]::InputBox("Daily allowed start time (HH:mm):", "Screen Time", $DefaultStart, -1, -1)
     if ([string]::IsNullOrWhiteSpace($Start)) { return }
-    $End = [Microsoft.VisualBasic.Interaction]::InputBox("Daily allowed end time (HH:mm):", "Screen Time", "20:00", -1, -1)
+    $End = [Microsoft.VisualBasic.Interaction]::InputBox("Daily allowed end time (HH:mm):", "Screen Time", $DefaultEnd, -1, -1)
     if ([string]::IsNullOrWhiteSpace($End)) { return }
-    $DailyMax = [Microsoft.VisualBasic.Interaction]::InputBox("Daily max computer minutes:", "Screen Time", "120", -1, -1)
-    if ([string]::IsNullOrWhiteSpace($DailyMax) -or -not [int]::TryParse($DailyMax, [ref]$null)) { Write-Host "[ERROR] Invalid daily max." -ForegroundColor Red; return }
-    $BrowserMax = [Microsoft.VisualBasic.Interaction]::InputBox("Daily max browser minutes:", "Screen Time", "60", -1, -1)
-    if ([string]::IsNullOrWhiteSpace($BrowserMax) -or -not [int]::TryParse($BrowserMax, [ref]$null)) { Write-Host "[ERROR] Invalid browser max." -ForegroundColor Red; return }
+    try {
+        [DateTime]::ParseExact($Start, "HH:mm", $null) | Out-Null
+        [DateTime]::ParseExact($End, "HH:mm", $null) | Out-Null
+    } catch {
+        Write-Host "[ERROR] Invalid time format. Use HH:mm (e.g. 08:00)." -ForegroundColor Red
+        return
+    }
+    $tmp = 0
+    $DailyMax = [Microsoft.VisualBasic.Interaction]::InputBox("Daily max computer minutes:", "Screen Time", $DefaultDailyMax, -1, -1)
+    if ([string]::IsNullOrWhiteSpace($DailyMax) -or -not [int]::TryParse($DailyMax, [ref]$tmp)) { Write-Host "[ERROR] Invalid daily max." -ForegroundColor Red; return }
+    $BrowserMax = [Microsoft.VisualBasic.Interaction]::InputBox("Daily max browser minutes:", "Screen Time", $DefaultBrowserMax, -1, -1)
+    if ([string]::IsNullOrWhiteSpace($BrowserMax) -or -not [int]::TryParse($BrowserMax, [ref]$tmp)) { Write-Host "[ERROR] Invalid browser max." -ForegroundColor Red; return }
     Set-ScreenTimeConfig -DailyStart $Start -DailyEnd $End -DailyMaxMinutes ([int]$DailyMax) -BrowserMaxMinutes ([int]$BrowserMax) -Enabled $true
     Write-Host "[SUCCESS] ScreenTime settings updated." -ForegroundColor Green
     Write-Log -Message "Admin updated ScreenTime settings." -Type "ACTION" -Color Magenta
@@ -1054,7 +1082,8 @@ function Show-GrantBrowserTimeDialog {
     Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
     $Minutes = [Microsoft.VisualBasic.Interaction]::InputBox("Enter minutes to grant the child for browser access:`n(Presets: 15, 30, 60, 120)", "Grant Browser Time", "30", -1, -1)
     if ([string]::IsNullOrWhiteSpace($Minutes)) { return }
-    if (-not [int]::TryParse($Minutes, [ref]$null)) {
+    $tmp = 0
+    if (-not [int]::TryParse($Minutes, [ref]$tmp)) {
         Write-Host "[ERROR] Invalid number." -ForegroundColor Red
         return
     }
@@ -1253,11 +1282,27 @@ function Enter-ParentMode {
     Disable-OSLock
     Disable-DNSLock
 
-    # Remove child hive restrictions from live hive if child is currently logged in
-    foreach ($Policy in $ChildHivePolicies) {
-        $KeyPath = "HKCU:\$($Policy.SubPath)"
-        try { Remove-ItemProperty -Path $KeyPath -Name $Policy.Name -Force -ErrorAction SilentlyContinue } catch {}
+    # Remove child hive restrictions from live hive if child is currently logged in, and offline hive if not
+    $ChildSidValue = Get-ChildSid
+    $LiveHive = $null
+    if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue")) {
+        $LiveHive = $ChildSidValue
     }
+    $OfflineHive = $null
+    if (-not $LiveHive) {
+        $OfflineHive = Mount-ChildHive
+    }
+    foreach ($Policy in $ChildHivePolicies) {
+        if ($LiveHive) {
+            $KeyPath = "Registry::HKEY_USERS\$LiveHive\$($Policy.SubPath)"
+            try { Remove-ItemProperty -Path $KeyPath -Name $Policy.Name -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        if ($OfflineHive) {
+            $KeyPath = "Registry::HKEY_USERS\$OfflineHive\$($Policy.SubPath)"
+            try { Remove-ItemProperty -Path $KeyPath -Name $Policy.Name -Force -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+    if ($OfflineHive) { Dismount-ChildHive -HiveMount $OfflineHive }
 
     # Refresh Windows UI so the unlock takes effect immediately
     Write-Log -Message "Refreshing Windows UI after unlock..." -Type "INFO" -Color Gray
@@ -1504,6 +1549,7 @@ This request was submitted by the child user and requires administrator approval
     try {
         Set-Content -Path $RequestFile -Value $Content -Encoding UTF8 -Force -ErrorAction Stop
         Write-Log -Message "Game request saved to '$RequestFile'." -Type "INFO" -Color Gray
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
         [System.Windows.Forms.MessageBox]::Show("Your request for '$GameName' has been submitted to the administrator.`n`nThe admin will review and install it if approved.", "Request Sent", "OK", "Information") | Out-Null
     } catch {
         Write-Log -Message "Failed to save game request: $_" -Type "ERROR" -Color Red
@@ -1541,7 +1587,7 @@ function Get-ChildInstallDirectories {
                 $HasExe = $null -ne (Get-ChildItem -Path $_.FullName -Filter "*.exe" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1)
                 $HasDll = $null -ne (Get-ChildItem -Path $_.FullName -Filter "*.dll" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1)
                 $HasConfig = $null -ne (Get-ChildItem -Path $_.FullName -Filter "*.json" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1)
-                $HasExe -or $HasDll -or $HasConfig -or ($Name -notmatch "^(Microsoft|Windows|Temp|Packages)$")
+                $HasExe -or $HasDll -or $HasConfig
             }
             foreach ($Candidate in $Candidates) {
                 if (-not $Dirs.Contains($Candidate.FullName)) { $Dirs.Add($Candidate.FullName) }
@@ -1752,10 +1798,6 @@ function Remove-MachinePolicies {
     } catch {
         Write-Log -Message "Could not restore USBSTOR service: $_" -Type "WARN" -Color Yellow
     }
-    Remove-EdgePolicies
-    Remove-BrowserRequestShortcut
-    Remove-GrantBrowserTimeShortcut
-    Remove-ScreenTimeWatcher
     Write-Log -Message "Machine-wide OS policies removed (UAC restored to default)." -Type "SUCCESS" -Color Green
 }
 
@@ -1777,14 +1819,20 @@ function Enable-OSLock {
     # 2. Machine-wide policies (UAC maxed + Store removed)
     Apply-MachinePolicies
 
-    # 3. Per-user policies on the child's hive
+    # 3. Per-user policies on the child's offline hive
     $HiveMount = Mount-ChildHive
     if ($HiveMount) {
         Apply-ChildHivePolicies -HiveMount $HiveMount
-        Write-Log -Message "Child hive policies applied to '$ChildUser'." -Type "SUCCESS" -Color Green
+        Write-Log -Message "Child hive policies applied to '$ChildUser' (offline)." -Type "SUCCESS" -Color Green
         Dismount-ChildHive -HiveMount $HiveMount
     } else {
         Write-Log -Message "Child hive not available - policies will apply at next child logon via ChildLogon task." -Type "WARN" -Color Yellow
+    }
+    # Also apply to live session if child is currently logged in
+    $ChildSidValue = Get-ChildSid
+    if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue")) {
+        Apply-ChildHivePolicies -HiveMount $ChildSidValue
+        Write-Log -Message "Child hive policies applied to '$ChildUser' (live session)." -Type "SUCCESS" -Color Green
     }
 
     # 4. Block password change at the account level (belt and suspenders)
@@ -1851,13 +1899,26 @@ function Disable-OSLock {
     # 1. Remove machine-wide policies
     Remove-MachinePolicies
 
-    # 2. Remove per-user policies from the child's hive
-    $HiveMount = Mount-ChildHive
-    if ($HiveMount) {
-        Remove-ChildHivePolicies -HiveMount $HiveMount
-        Write-Log -Message "Child hive policies removed from '$ChildUser'." -Type "SUCCESS" -Color Green
-        Dismount-ChildHive -HiveMount $HiveMount
-    } else {
+    # 2. Remove per-user policies from the child's live and offline hives
+    $ChildSidValue = Get-ChildSid
+    $LiveHive = $null
+    if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue")) {
+        $LiveHive = $ChildSidValue
+    }
+    $OfflineHive = $null
+    if (-not $LiveHive) {
+        $OfflineHive = Mount-ChildHive
+    }
+    if ($LiveHive) {
+        Remove-ChildHivePolicies -HiveMount $LiveHive
+        Write-Log -Message "Child hive policies removed from '$ChildUser' (live session)." -Type "SUCCESS" -Color Green
+    }
+    if ($OfflineHive) {
+        Remove-ChildHivePolicies -HiveMount $OfflineHive
+        Write-Log -Message "Child hive policies removed from '$ChildUser' (offline)." -Type "SUCCESS" -Color Green
+        Dismount-ChildHive -HiveMount $OfflineHive
+    }
+    if (-not $LiveHive -and -not $OfflineHive) {
         Write-Log -Message "Child hive not available for cleanup - policies will clear at next logon if ChildLogon task removed." -Type "WARN" -Color Yellow
     }
 
@@ -1865,6 +1926,13 @@ function Disable-OSLock {
     net user $ChildUser /passwordchg:yes 2>&1 | Out-Null
 
     Remove-ChildLogoutShortcut
+    Remove-ChildGameRequestShortcut
+    Remove-ParentModeShortcut
+    Remove-ParentModeAdminTools
+    Remove-BrowserRequestShortcut
+    Remove-GrantBrowserTimeShortcut
+    Remove-EdgePolicies
+    Remove-ScreenTimeWatcher
 
     Write-Log -Message "OS Child Lockdown removed." -Type "SUCCESS" -Color Green
 }
@@ -2532,7 +2600,11 @@ function Show-CategoryGrid {
             $RightKey = $Keys[$i + 1]
             $RightVal = $Categories[$RightKey]
             $RightStr = if ($RightVal -eq $true) { "[ENABLED]  " } elseif ($RightVal -eq $false) { "[DISABLED] " } else { "[UNKNOWN]  " }
-            Write-Host ("  {0}{1,-22}  {2}{3,-22}" -f $LeftStr, $LeftKey, $RightStr, $RightKey) -ForegroundColor $LeftColor
+            $RightColor = if ($RightVal -eq $true) { "Green" } elseif ($RightVal -eq $false) { "DarkGray" } else { "Yellow" }
+            Write-Host "  $LeftStr" -NoNewline -ForegroundColor $LeftColor
+            Write-Host ("{0,-22}  " -f $LeftKey) -NoNewline -ForegroundColor $LeftColor
+            Write-Host "$RightStr" -NoNewline -ForegroundColor $RightColor
+            Write-Host ("{0,-22}" -f $RightKey) -ForegroundColor $RightColor
         } else {
             Write-Host ("  {0}{1,-22}" -f $LeftStr, $LeftKey) -ForegroundColor $LeftColor
         }
@@ -2762,13 +2834,6 @@ function Install-Persistence {
     # 6. Apply ALL locks immediately (DNS + OS + child account)
     Enable-DNSLock
     Enable-OSLock
-    Set-ChildLogoutShortcut
-    New-ChildGameRequestShortcut
-    New-ParentModeShortcut
-    New-BrowserLauncher
-    New-BrowserRequestShortcut
-    New-GrantBrowserTimeShortcut
-    Apply-EdgePolicies
 
     # 6.1 Initialize ScreenTime config and watcher if not already present
     if (-not (Test-Path $ScreenTimeConfigFile)) {
@@ -2937,14 +3002,10 @@ function Uninstall-Persistence {
     # Unlock everything FIRST (DNS + OS)
     Disable-DNSLock
     Disable-OSLock
-    Remove-ChildLogoutShortcut
+    # Remove child-facing shortcuts and admin tools (Disable-OSLock already handles most of these)
     Remove-ChildGameRequestShortcut
     Remove-ParentModeShortcut
     Remove-ParentModeAdminTools
-    Remove-BrowserRequestShortcut
-    Remove-GrantBrowserTimeShortcut
-    Remove-EdgePolicies
-    Remove-ScreenTimeWatcher
 
     # Remove ScreenTime files
     foreach ($STFile in @($ScreenTimeConfigFile, $ScreenTimeTrackerFile, $BrowserLauncherPath)) {
