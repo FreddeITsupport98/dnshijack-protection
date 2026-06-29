@@ -2768,7 +2768,8 @@ function Show-CategoryGrid {
 
     $GpoEnforced = $true
     $NetConn = Get-ItemProperty -Path $GpoPath -ErrorAction SilentlyContinue
-    if (-not $NetConn -or $NetConn.NC_LanProperties -ne 0) { $GpoEnforced = $false }
+    $NetConnLan = if ($NetConn) { $NetConn.NC_LanProperties } else { $null }
+    if ($NetConnLan -ne 0) { $GpoEnforced = $false }
     $Edge = Get-ItemProperty -Path $EdgePath -ErrorAction SilentlyContinue
     if ($Edge -and $Edge.DnsOverHttpsMode -ne "off") { $GpoEnforced = $false }
     $Chrome = Get-ItemProperty -Path $ChromePath -ErrorAction SilentlyContinue
@@ -2779,29 +2780,29 @@ function Show-CategoryGrid {
 
     # --- OS Machine-wide ---
     $UacPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
-    $UacLUA = (Get-ItemProperty -Path $UacPath -Name "EnableLUA" -ErrorAction SilentlyContinue).EnableLUA
-    $UacAdmin = (Get-ItemProperty -Path $UacPath -Name "ConsentPromptBehaviorAdmin" -ErrorAction SilentlyContinue).ConsentPromptBehaviorAdmin
+    $UacLUA = Get-ItemProperty -Path $UacPath -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "EnableLUA" -ErrorAction SilentlyContinue
+    $UacAdmin = Get-ItemProperty -Path $UacPath -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "ConsentPromptBehaviorAdmin" -ErrorAction SilentlyContinue
     $Categories["UAC Max"] = ($UacLUA -eq 1 -and $UacAdmin -eq 2)
 
-    $StoreRemoved = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore" -Name "RemoveWindowsStore" -ErrorAction SilentlyContinue).RemoveWindowsStore
+    $StoreRemoved = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "RemoveWindowsStore" -ErrorAction SilentlyContinue
     $Categories["Windows Store"] = ($StoreRemoved -eq 1)
 
-    $MsiDisabled = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer" -Name "DisableMSI" -ErrorAction SilentlyContinue).DisableMSI
+    $MsiDisabled = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Installer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "DisableMSI" -ErrorAction SilentlyContinue
     $Categories["Windows Installer"] = ($MsiDisabled -eq 2)
 
-    $UsbStart = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\USBSTOR" -Name "Start" -ErrorAction SilentlyContinue).Start
+    $UsbStart = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\USBSTOR" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "Start" -ErrorAction SilentlyContinue
     $Categories["USB Storage"] = ($UsbStart -eq 4)
 
-    $WshEnabled = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings" -Name "Enabled" -ErrorAction SilentlyContinue).Enabled
+    $WshEnabled = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "Enabled" -ErrorAction SilentlyContinue
     $Categories["WSH (cscript)"] = ($WshEnabled -eq 0)
 
-    $SmartScreen = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableSmartScreen" -ErrorAction SilentlyContinue).EnableSmartScreen
+    $SmartScreen = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "EnableSmartScreen" -ErrorAction SilentlyContinue
     $Categories["SmartScreen"] = ($SmartScreen -eq 1)
 
-    $FastSwitch = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "HideFastUserSwitching" -ErrorAction SilentlyContinue).HideFastUserSwitching
+    $FastSwitch = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "HideFastUserSwitching" -ErrorAction SilentlyContinue
     $Categories["Fast User Switching"] = ($FastSwitch -eq 1)
 
-    $WuBlocked = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "DisableWindowsUpdateAccess" -ErrorAction SilentlyContinue).DisableWindowsUpdateAccess
+    $WuBlocked = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "DisableWindowsUpdateAccess" -ErrorAction SilentlyContinue
     $Categories["Windows Update UI"] = ($WuBlocked -eq 1)
 
     # --- Child Account ---
@@ -2828,23 +2829,23 @@ function Show-CategoryGrid {
     }
 
     if ($HiveMount) {
-        $TaskMgr = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableTaskMgr" -ErrorAction SilentlyContinue).DisableTaskMgr
-        $Regedit = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableRegistryTools" -ErrorAction SilentlyContinue).DisableRegistryTools
-        $NoRun = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoRun" -ErrorAction SilentlyContinue).NoRun
-        $NoControlPanel = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoControlPanel" -ErrorAction SilentlyContinue).NoControlPanel
-        $NoCtx = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoViewContextMenu" -ErrorAction SilentlyContinue).NoViewContextMenu
-        $NoFolder = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoFolderOptions" -ErrorAction SilentlyContinue).NoFolderOptions
-        $NoTaskbar = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoSetTaskbar" -ErrorAction SilentlyContinue).NoSetTaskbar
-        $NoAddPrinter = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoAddPrinter" -ErrorAction SilentlyContinue).NoAddPrinter
-        $NoDelPrinter = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDeletePrinter" -ErrorAction SilentlyContinue).NoDeletePrinter
-        $NoThemes = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "NoThemesTab" -ErrorAction SilentlyContinue).NoThemesTab
-        $NoWallpaper = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\ActiveDesktop" -Name "NoChangingWallPaper" -ErrorAction SilentlyContinue).NoChangingWallPaper
-        $NoAutoPlay = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -ErrorAction SilentlyContinue).NoDriveTypeAutoRun
-        $NoAdminTools = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "StartMenuAdminTools" -ErrorAction SilentlyContinue).StartMenuAdminTools
-        $NoAddRemove = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Uninstall" -Name "NoAddRemovePrograms" -ErrorAction SilentlyContinue).NoAddRemovePrograms
-        $NoPassChange = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableChangePassword" -ErrorAction SilentlyContinue).DisableChangePassword
-        $NoNetUi = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Policies\Microsoft\Windows\Network Connections" -Name "NC_LanProperties" -ErrorAction SilentlyContinue).NC_LanProperties
-        $NoThisPC = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\NonEnum" -Name "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" -ErrorAction SilentlyContinue)."{20D04FE0-3AEA-1069-A2D8-08002B30309D}"
+        $TaskMgr = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "DisableTaskMgr" -ErrorAction SilentlyContinue
+        $Regedit = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "DisableRegistryTools" -ErrorAction SilentlyContinue
+        $NoRun = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoRun" -ErrorAction SilentlyContinue
+        $NoControlPanel = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoControlPanel" -ErrorAction SilentlyContinue
+        $NoCtx = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoViewContextMenu" -ErrorAction SilentlyContinue
+        $NoFolder = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoFolderOptions" -ErrorAction SilentlyContinue
+        $NoTaskbar = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoSetTaskbar" -ErrorAction SilentlyContinue
+        $NoAddPrinter = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoAddPrinter" -ErrorAction SilentlyContinue
+        $NoDelPrinter = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoDeletePrinter" -ErrorAction SilentlyContinue
+        $NoThemes = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoThemesTab" -ErrorAction SilentlyContinue
+        $NoWallpaper = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\ActiveDesktop" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoChangingWallPaper" -ErrorAction SilentlyContinue
+        $NoAutoPlay = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoDriveTypeAutoRun" -ErrorAction SilentlyContinue
+        $NoAdminTools = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "StartMenuAdminTools" -ErrorAction SilentlyContinue
+        $NoAddRemove = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Uninstall" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NoAddRemovePrograms" -ErrorAction SilentlyContinue
+        $NoPassChange = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "DisableChangePassword" -ErrorAction SilentlyContinue
+        $NoNetUi = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Policies\Microsoft\Windows\Network Connections" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "NC_LanProperties" -ErrorAction SilentlyContinue
+        $NoThisPC = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\NonEnum" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" -ErrorAction SilentlyContinue
 
         $Categories["Task Manager"] = ($TaskMgr -eq 1)
         $Categories["Registry Tools"] = ($Regedit -eq 1)
@@ -2861,8 +2862,8 @@ function Show-CategoryGrid {
         $Categories["Password Change"] = ($NoPassChange -eq 1)
         $Categories["Network UI"] = ($NoNetUi -eq 0)
         $Categories["This PC Hidden"] = ($NoThisPC -eq 1)
-        $DisallowRun = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "DisallowRun" -ErrorAction SilentlyContinue).DisallowRun
-        $ChromeDisallowed = (Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun" -Name "51" -ErrorAction SilentlyContinue)."51"
+        $DisallowRun = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "DisallowRun" -ErrorAction SilentlyContinue
+        $ChromeDisallowed = Get-ItemProperty -Path "Registry::HKEY_USERS\$HiveMount\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "51" -ErrorAction SilentlyContinue
         $Categories["Alt Browser Block"] = ($DisallowRun -eq 1 -and $ChromeDisallowed -eq "chrome.exe")
 
         [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); Start-Sleep -Milliseconds 300
@@ -2888,8 +2889,8 @@ function Show-CategoryGrid {
 
     # --- Browser Lockdown (Edge-Only) ---
     $EdgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
-    $EdgeGuest = (Get-ItemProperty -Path $EdgePolicyPath -Name "BrowserGuestModeEnabled" -ErrorAction SilentlyContinue).BrowserGuestModeEnabled
-    $EdgeAddProfile = (Get-ItemProperty -Path $EdgePolicyPath -Name "BrowserAddProfileEnabled" -ErrorAction SilentlyContinue).BrowserAddProfileEnabled
+    $EdgeGuest = Get-ItemProperty -Path $EdgePolicyPath -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "BrowserGuestModeEnabled" -ErrorAction SilentlyContinue
+    $EdgeAddProfile = Get-ItemProperty -Path $EdgePolicyPath -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "BrowserAddProfileEnabled" -ErrorAction SilentlyContinue
     $Categories["Edge-Only Browser"] = ($EdgeGuest -eq 0 -and $EdgeAddProfile -eq 0)
 
     # --- Screen Time ---
