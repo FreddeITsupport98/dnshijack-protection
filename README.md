@@ -61,11 +61,26 @@ Built-in Administrator retains full privileges to install, modify, and unlock.
 | **Admin-Approval Logout Shortcut** | Creates a `Log out` shortcut on the child's desktop flagged to run as administrator, so the child cannot log out without admin UAC approval |
 | **Category Status Grid** | Interactive TUI shows a two-column grid of all 25+ lock categories with [ENABLED] / [DISABLED] / [UNKNOWN] indicators at a glance |
 | **Parent Mode** | Admin enters a password-protected temporary unlock mode to install software or view the child account. Auto-relocks after 5 minutes of inactivity (AFK watcher). |
+| **Parent Mode Window Guard** | Background process monitors for new windows while Parent Mode is active. If a new window appears (e.g., child uses admin mouse), a password prompt is shown immediately. 3 wrong passwords triggers instant lock. |
+| **Parent Mode Admin Tools** | `Admin CMD.lnk` and `Admin PowerShell.lnk` dynamically appear on the admin desktop during Parent Mode with UAC elevation so the admin can quickly open elevated terminals. They are removed when exiting. |
+| **Edge-Only Browser Lockdown** | `DisallowRun` entries 51-58 block Chrome, Firefox, Brave, Opera, Vivaldi, Waterfox, Tor, and Internet Explorer. Edge is the only allowed browser. |
+| **Edge Deep Lockdown** | `BookmarkBarEnabled=0`, `InPrivateModeAvailability=1`, `DeveloperToolsAvailability=2`, `DownloadRestrictions=3`, `SyncDisabled=1`, `PasswordManagerEnabled=0`, `URLBlocklist`, `ExtensionInstallBlocklist=*` disable bookmarks, incognito, dev tools, downloads, extensions, settings access, and more. |
+| **Screen Time Engine** | Admin-configurable daily activity hours (`DailyStart`/`DailyEnd`), daily max minutes, and browser-specific max minutes. `OSGuard-ScreenTime` watcher runs every minute as SYSTEM to track and enforce limits. |
+| **Browser Request & Grant Flow** | Child desktop has `Browser Request.lnk` which shows a tamper-proof popup when clicked. Admin uses `Grant Browser Time` desktop shortcut (password-protected) to set session minutes (15/30/60/120). The child cannot set their own timer. |
+| **Start Menu Lockdown** | `NoStartMenuPinnedList`, `NoStartMenuDragDrop`, `NoTrayContextMenu`, `NoMovingBands`, `NoCloseDragDropBands`, `DisableContextMenusInStart`, `NoBalloonTips` disable pinning, drag-drop, tray context menus, and taskbar manipulation. |
+| **Notification Center Block** | `DisableNotificationCenter` and `DisableWindowsConsumerFeatures` block Action Center and suggested apps in the Start Menu. |
 | **Game Request Shortcut** | Child has a "Request Game Install" shortcut on the desktop that opens a simple dialog to type a game name and send it to the admin. |
 | **Lock Now / Continue Parent Mode** | Admin desktop shortcuts allow instant re-locking or resetting the AFK timer without opening the terminal. |
 | **Parent Mode AFK Watcher** | 1-minute heartbeat scheduled task monitors idle time; if idle exceeds 5 minutes while parent mode is active, it auto-triggers `oslock -LockNow`. |
+| **Salted Parent Password** | Parent Mode password uses SHA256 with a 16-byte random salt (Base64 stored in `OSGuardParentPasswordSalt`) to resist offline brute-force. Minimum 8 characters. |
+| **Inline Watch Script** | `ParentModeWatch.ps1` is embedded as a Base64 string inside the main script and rewritten fresh on every silent heal; ACL hardened to SYSTEM only. |
+| **Pre-Action Integrity Check** | `Enable-OSLock`, `Disable-OSLock`, and `Enter-ParentMode` re-verify script integrity immediately before executing (not just at menu render time). |
+| **WMI Health Check** | `SilentLock` re-registers the `OSGuardWmiHealth` WMI subscription if the filter, consumer, or binding is missing. |
+| **Task Scheduler Watch** | `SilentLock` monitors the `Schedule` service and auto-starts it if stopped. |
+| **Hardened Requests Directory** | `C:\ProgramData\OSGuard\Requests` grants the child `WriteData, AppendData` only (no read/list/delete); admins retain `ReadAndExecute`. |
+| **Program Guardian Engine** | Scheduled task `OSGuard-ProgramScanner` scans the child profile every 10 minutes for newly installed programs, hardens their directories and shortcuts so the child cannot tamper with them, and blocks 50+ Windows built-in exploit tools via `DisallowRun` registry policies (Notepad, WordPad, Paint, Write, Explorer, PowerShell, pwsh, CMD, WSH, mshta, certutil, bitsadmin, wmic, regsvr32, rundll32, msiexec, msconfig, mmc, eventvwr, UAC bypass tools, taskkill, ftp, curl, robocopy, takeown, icacls, net, schtasks, at, cleanmgr, sdclt, control, .cpl, .msc, and more). Also disables `NoOpenWith`, `NoInternetOpenWith`, `NoSecurityTab`, `NoHardwareTab`, and `NoManageMyComputerVerb`. |
 
----
+|---
 
 ## Security Architecture
 
@@ -78,10 +93,12 @@ The script targets specific SIDs with `Deny` ACLs while leaving DHCP services un
 | `S-1-5-19` | `NT AUTHORITY\LocalService` | **Unchanged** (DHCP works) |
 
 **File/Directory Hardening:**
-- `C:\ProgramData\OSGuard` — SYSTEM `FullControl`, Administrators `ReadAndExecute`
-- `C:\Windows\oslock.cmd` — SYSTEM `FullControl`, Administrators `ReadAndExecute`
-- `C:\ProgramData\DNSGuard` — Legacy path from DNS-Guard only install (see `new2.ps1`)
-- `C:\Windows\dnslock.cmd` — Legacy CLI wrapper from DNS-Guard only install
+|- `C:\ProgramData\OSGuard` — SYSTEM `FullControl`, Administrators `ReadAndExecute`
+|- `C:\ProgramData\OSGuard\ParentModeWatch.ps1` — SYSTEM `FullControl`, Administrators `ReadAndExecute` (rewritten fresh from embedded Base64 on every silent heal)
+|- `C:\ProgramData\OSGuard\Requests` — SYSTEM `FullControl`, Administrators `ReadAndExecute`, Child `WriteData, AppendData` only (no read/list/delete)
+|- `C:\Windows\oslock.cmd` — SYSTEM `FullControl`, Administrators `ReadAndExecute`
+|- `C:\ProgramData\DNSGuard` — Legacy path from DNS-Guard only install (see `new2.ps1`)
+|- `C:\Windows\dnslock.cmd` — Legacy CLI wrapper from DNS-Guard only install
 
 ---
 
@@ -118,6 +135,11 @@ When `new2_OS_lockdown.ps1` is installed, the following child-safe restrictions 
 - Taskbar changes: blocked (`NoSetTaskbar = 1`)
 - Printer add/remove: blocked (`NoAddPrinter = 1`, `NoDeletePrinter = 1`)
 - "This PC" icon: hidden from desktop and start menu (`{20D04FE0-3AEA-1069-A2D8-08002B30309D} = 1`)
+- **Start Menu & Taskbar restrictions**: `NoStartMenuPinnedList` (no pinning to Start or taskbar), `NoStartMenuDragDrop` (no drag-and-drop in Start), `NoTrayContextMenu` (no right-click on tray icons), `NoMovingBands` (no moving taskbar toolbars), `NoCloseDragDropBands` (no closing/dragging toolbars), `NoBalloonTips` (no tray balloon tips), `DisableContextMenusInStart` (no right-click in Start menu)
+- **Start Menu special folders hidden**: `NoStartMenuNetworkPlaces`, `NoStartMenuEjectPC`, `NoStartMenuMyGames`, `NoStartMenuMyMusic`, `NoStartMenuMyPictures`, `NoStartMenuMyVideos`, `NoStartMenuDownloads`, `NoStartMenuDocuments`, `NoStartMenuRecordings`, `NoStartMenuHomegroup`, `NoStartMenuFavorites`, `NoStartMenuRecentDocs`, `NoStartMenuRun`, `NoStartMenuFind`, `NoStartMenuHelp`, `NoStartMenuLogoff`
+- **Notification Center & Consumer Features blocked**: `DisableNotificationCenter` (Action Center disabled), `DisableWindowsConsumerFeatures` (suggested apps removed from Start)
+- **50+ Exploit Tools Blocked** via `DisallowRun` (entries 1-50): Notepad, WordPad, Paint, Write, Explorer, PowerShell, pwsh, CMD, wscript, cscript, mshta, certutil, bitsadmin, wmic, regsvr32, rundll32, msiexec, msconfig, mmc, eventvwr, fodhelper, computerdefaults, slui, dccw, xwizard, taskkill, ftp, tftp, telnet, curl, robocopy, takeown, icacls, net, net1, schtasks, at, cleanmgr, sdclt, systempropertiesadvanced, ms-settings, control, inetcpl.cpl, appwiz.cpl, compmgmt.msc, diskmgmt.msc, devmgmt.msc, taskmgr, regedit, perfmon
+- **Additional Explorer Hardening**: `NoOpenWith`, `NoInternetOpenWith`, `NoSecurityTab`, `NoHardwareTab`, `NoManageMyComputerVerb`
 
 **Child Account:**
 - Account name: `Child` (configurable via `-ChildUser` parameter)
@@ -182,6 +204,11 @@ After installation, the global `oslock` command is available from any terminal:
 | `-ChildGameRequest` | Open the child game request dialog | Child (auto) |
 | `-ContinueParentMode` | Reset the AFK timer while in Parent Mode | Admin |
 | `-LockNow` | Exit Parent Mode and re-lock immediately | Admin |
+|| `-ProgramScan` | Trigger an immediate Program Guardian scan & hardening | Admin |
+|| `-SetScreenTime` | Interactively set daily/hourly screen time limits | Admin |
+|| `-ScreenTimeStatus` | Show child's current screen time usage | Child (auto) |
+|| `-GrantBrowserTime` | Grant temporary browser minutes (password protected) | Admin |
+|| `-ScreenTimeEnforce` | Background enforcement used by watcher task | SYSTEM |
 
 **Uninstall from a SYSTEM shell:**
 
@@ -234,8 +261,9 @@ Select an administrative action (1-8):
 ```
 
 - Option `[3]` is hidden when already installed.
-- Options `[1]` and `[2]` are blocked with a red warning if tampering is detected.
+- Options `[1]`, `[2]`, `[3]`, `[7]`, and `[8]` are blocked with a red warning if tampering is detected.
 - **OS + DNS menu** (`new2_OS_lockdown.ps1`) also shows the **OS Child Lockdown** panel (UAC, Store, TaskMgr, Regedit status) and checks the `Child` account state.
+- **Program Guardian** is shown in the menu as a green `[X]` when the `OSGuard-ProgramScanner` task is registered.
 
 ---
 
@@ -341,6 +369,11 @@ Get-ScheduledTask | Where-Object {$_.TaskPath -eq '\' -and $_.Author -notmatch '
 - **Offline boot** (live USB, Safe Mode) bypasses all protections.
 - **Child account must log in once** before offline NTUSER.DAT hive policies can be applied. If the child has never logged in, the `ChildLogon` scheduled task will apply HKCU policies at the first logon.
 - **Windows 10/11 Home** may not have `Get-LocalUser` / `New-LocalUser` cmdlets available in older builds; the script falls back to `net user` where possible.
+- **Program Guardian** only discovers programs already installed in the child profile at scan time; it does not prevent the child from running portable executables stored outside scanned directories. Admins should install software into the child Desktop, Start Menu, or `AppData\Local\Programs` so the engine can find and harden it.
+- **Parent Mode Window Guard** is a best-effort heuristic: it polls every 5 seconds for new visible processes while Parent Mode is active. A determined child who can quickly interact with a newly opened window before the guard detects it may bypass the prompt. The guard catches most accidental or slow interactions.
+- **DisallowRun** blocks 50+ exact executable names (including `powershell.exe`, `pwsh.exe`, `cmd.exe`, `mshta.exe`, `mmc.exe`, `eventvwr.exe`, `fodhelper.exe`, etc.). A determined attacker can rename a copy of these tools, but this defeats casual child tampering. The shell blocks launches from Run dialog, Start menu, and double-click; already-running processes are not terminated.
+- **Edge-Only Lockdown** blocks other browsers via `DisallowRun` 51-58. A child could still use Edge WebView or rename a blocked binary, but casual browsing is restricted to Edge only. Edge policies can be overridden by a user with local admin rights or by booting into Safe Mode.
+- **Screen Time Engine** tracks usage via a JSON tracker under `C:\ProgramData\OSGuard`. A child with local admin rights or SYSTEM access could delete or edit the tracker. The engine is best-effort and relies on the `OSGuard-ScreenTime` scheduled task running every minute. If the task is stopped, enforcement is delayed until the next minute.
 
 ---
 
@@ -362,6 +395,8 @@ This section tracks upcoming and recently merged changes before they are tagged 
 - **New regression tests** in `tests/` folder: `syntax_check.ps1` (auto syntax checker + chmod) and `test_os_lockdown.ps1` (read-only state verification).
 - **Child Logon Task** (`OSGuard-ChildLogon`) ensures HKCU restrictions are reapplied at every child logon.
 - **WMI subscription** renamed to `OSGuardWmiHealth`.
+- **Edge-Only Browser Lockdown** (2026-06-29): `DisallowRun` 51-58 blocks Chrome, Firefox, Brave, Opera, Vivaldi, Waterfox, Tor, and Internet Explorer. Edge deep lockdown disables bookmarks, incognito, dev tools, downloads, sync, password manager, extensions, and settings access.
+- **Screen Time Engine** (2026-06-29): Admin-configurable daily activity hours (`DailyStart`/`DailyEnd`), daily max minutes, and browser-specific max minutes. `OSGuard-ScreenTime` watcher runs every minute as SYSTEM. Browser Request & Grant Flow requires admin password to set session time.
 
 ---
 
@@ -374,3 +409,4 @@ This section tracks upcoming and recently merged changes before they are tagged 
 ```powershell
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
+

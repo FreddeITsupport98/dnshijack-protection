@@ -35,6 +35,11 @@ param (
     [switch]$ChildGameRequest,
     [switch]$ContinueParentMode,
     [switch]$LockNow,
+    [switch]$ProgramScan,
+    [switch]$SetScreenTime,
+    [switch]$ScreenTimeStatus,
+    [switch]$GrantBrowserTime,
+    [switch]$ScreenTimeEnforce,
     [string]$ChildUser = "Child"
 )
 
@@ -71,6 +76,10 @@ if (-not $Principal.IsInRole($Role)) {
             if ($ChildGameRequest) { $ArgsString += " -ChildGameRequest" }
             if ($ContinueParentMode) { $ArgsString += " -ContinueParentMode" }
             if ($LockNow) { $ArgsString += " -LockNow" }
+            if ($SetScreenTime) { $ArgsString += " -SetScreenTime" }
+            if ($ScreenTimeStatus) { $ArgsString += " -ScreenTimeStatus" }
+            if ($GrantBrowserTime) { $ArgsString += " -GrantBrowserTime" }
+            if ($ScreenTimeEnforce) { $ArgsString += " -ScreenTimeEnforce" }
             if ($ChildUser -ne "Child") { $ArgsString += " -ChildUser `"$ChildUser`"" }
 
             $ProcessInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $ArgsString"
@@ -98,7 +107,15 @@ $Guardian2Name = "OSGuard-Guardian2"
 $ChildLogonTaskName = "OSGuard-ChildLogon"
 $WmiEventName = "OSGuardWmiHealth"
 $ParentModeWatchName = "OSGuard-ParentModeWatch"
+$ProgramScannerName = "OSGuard-ProgramScanner"
+$ScreenTimeTaskName = "OSGuard-ScreenTime"
+$ScreenTimeConfigFile = Join-Path $InstallDir "ScreenTime.json"
+$ScreenTimeTrackerFile = Join-Path $InstallDir "ScreenTimeTracker.json"
+$BrowserLauncherPath = Join-Path $InstallDir "BrowserLauncher.ps1"
 $IntegrityRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WpnPlatform\Settings"
+
+# Parent Mode AFK Watch script embedded as Base64 (written fresh at install and every silent heal)
+$ParentModeWatchB64 = "JFJlZ1BhdGggPSAiSEtMTTpcU09GVFdBUkVcTWljcm9zb2Z0XFdpbmRvd3NcQ3VycmVudFZlcnNpb25cV3BuUGxhdGZvcm1cU2V0dGluZ3MiCiRBY3RpdmUgPSAoR2V0LUl0ZW1Qcm9wZXJ0eSAtUGF0aCAkUmVnUGF0aCAtTmFtZSAiT1NHdWFyZFBhcmVudE1vZGVBY3RpdmUiIC1FcnJvckFjdGlvbiBTaWxlbnRseUNvbnRpbnVlKS5PU0d1YXJkUGFyZW50TW9kZUFjdGl2ZQppZiAoJEFjdGl2ZSAtbmUgMSkgeyByZXR1cm4gfQoKQWRkLVR5cGUgQCIKdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUnVudGltZS5JbnRlcm9wU2VydmljZXM7CnB1YmxpYyBjbGFzcyBJZGxlVGltZSB7CiAgICBbRGxsSW1wb3J0KCJ1c2VyMzIuZGxsIildIHN0YXRpYyBleHRlcm4gYm9vbCBHZXRMYXN0SW5wdXRJbmZvKHJlZiBMQVNUSU5QVVRJTkZPIHBsaWkpOwogICAgW1N0cnVjdExheW91dChMYXlvdXRLaW5kLlNlcXVlbnRpYWwpXSBzdHJ1Y3QgTEFTVElOUFVUSU5GTyB7IHB1YmxpYyB1aW50IGNiU2l6ZTsgcHVibGljIHVpbnQgZHdUaW1lOyB9CiAgICBwdWJsaWMgc3RhdGljIHVpbnQgR2V0SWRsZVRpbWUoKSB7CiAgICAgICAgTEFTVElOUFVUSU5GTyBsaWkgPSBuZXcgTEFTVElOUFVUSU5GTygpOyBsaWkuY2JTaXplID0gKHVpbnQpTWFyc2hhbC5TaXplT2YodHlwZW9mKExBU1RJTlBVVElORk8pKTsKICAgICAgICBHZXRMYXN0SW5wdXRJbmZvKHJlZiBsaWkpOwogICAgICAgIHJldHVybiAodWludClFbnZpcm9ubWVudC5UaWNrQ291bnQgLSBsaWkuZHdUaW1lOwogICAgfQp9CiJACgokSWRsZU1zID0gW0lkbGVUaW1lXTo6R2V0SWRsZVRpbWUoKQokVGltZW91dCA9IDUgKiA2MCAqIDEwMDAKaWYgKCRJZGxlTXMgLWd0ICRUaW1lb3V0KSB7CiAgICAmICJDOlxXaW5kb3dzXG9zbG9jay5jbWQiIC1Mb2NrTm93Cn0="
 
 # Setup Auto-Logging
 $ScriptDir = Split-Path -Parent -Path $PSCommandPath
@@ -180,7 +197,11 @@ $MachinePolicies = @(
     # Block Windows Update UI for standard users
     @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"; Name = "DisableWindowsUpdateAccess"; Value = 1 },
     # Disable Fast User Switching (prevents switching to admin without logging out)
-    @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"; Name = "HideFastUserSwitching"; Value = 1 }
+    @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"; Name = "HideFastUserSwitching"; Value = 1 },
+    # Disable Notification Center / Action Center globally
+    @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer"; Name = "DisableNotificationCenter"; Value = 1 },
+    # Disable Windows consumer features (suggested apps in Start Menu)
+    @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"; Name = "DisableWindowsConsumerFeatures"; Value = 1 }
 )
 
 # Per-user (HKCU) policies applied to the child account only.
@@ -224,7 +245,100 @@ $ChildHivePolicies = @(
     @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoAddPrinter"; Value = 1 },
     @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoDeletePrinter"; Value = 1 },
     # Hide "This PC" from desktop and start menu
-    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\NonEnum"; Name = "{20D04FE0-3AEA-1069-A2D8-08002B30309D}"; Value = 1 }
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\NonEnum"; Name = "{20D04FE0-3AEA-1069-A2D8-08002B30309D}"; Value = 1 },
+    # Block exploit tools (Notepad, WordPad, Paint, Write) that can browse files via File -> Open
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "DisallowRun"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "1"; Value = "notepad.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "2"; Value = "wordpad.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "3"; Value = "mspaint.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "4"; Value = "write.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "5"; Value = "explorer.exe" },
+    # Disable "Open With" dialog to prevent file browsing via Choose Another App
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoOpenWith"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoInternetOpenWith"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoSecurityTab"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoHardwareTab"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoManageMyComputerVerb"; Value = 1 },
+    # Start Menu hardening: lock pinning, drag-drop, context menus, and taskbar tray
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuPinnedList"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuDragDrop"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoTrayContextMenu"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoMovingBands"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoCloseDragDropBands"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuNetworkPlaces"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuEjectPC"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuMyGames"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuMyMusic"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuMyPictures"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuMyVideos"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuDownloads"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuDocuments"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuRecordings"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuHomegroup"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuFavorites"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuRecentDocs"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuRun"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuFind"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuHelp"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoStartMenuLogoff"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "NoBalloonTips"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"; Name = "DisableContextMenusInStart"; Value = 1 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\Explorer"; Name = "DisableNotificationCenter"; Value = 1 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\CloudContent"; Name = "DisableWindowsConsumerFeatures"; Value = 1 },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "6"; Value = "powershell.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "7"; Value = "pwsh.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "8"; Value = "cmd.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "9"; Value = "wscript.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "10"; Value = "cscript.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "11"; Value = "mshta.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "12"; Value = "certutil.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "13"; Value = "bitsadmin.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "14"; Value = "wmic.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "15"; Value = "regsvr32.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "16"; Value = "rundll32.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "17"; Value = "msiexec.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "18"; Value = "msconfig.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "19"; Value = "mmc.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "20"; Value = "eventvwr.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "21"; Value = "fodhelper.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "22"; Value = "computerdefaults.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "23"; Value = "slui.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "24"; Value = "dccw.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "25"; Value = "xwizard.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "26"; Value = "taskkill.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "27"; Value = "ftp.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "28"; Value = "tftp.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "29"; Value = "telnet.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "30"; Value = "curl.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "31"; Value = "robocopy.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "32"; Value = "takeown.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "33"; Value = "icacls.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "34"; Value = "net.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "35"; Value = "net1.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "36"; Value = "schtasks.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "37"; Value = "at.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "38"; Value = "cleanmgr.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "39"; Value = "sdclt.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "40"; Value = "systempropertiesadvanced.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "41"; Value = "ms-settings.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "42"; Value = "control.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "43"; Value = "inetcpl.cpl" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "44"; Value = "appwiz.cpl" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "45"; Value = "compmgmt.msc" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "46"; Value = "diskmgmt.msc" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "47"; Value = "devmgmt.msc" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "48"; Value = "taskmgr.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "49"; Value = "regedit.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "50"; Value = "perfmon.exe" },
+    # Block all alternative browsers so Edge is the only viable option
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "51"; Value = "chrome.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "52"; Value = "firefox.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "53"; Value = "brave.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "54"; Value = "opera.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "55"; Value = "vivaldi.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "56"; Value = "waterfox.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "57"; Value = "tor.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "58"; Value = "iexplore.exe" }
 )
 
 # ============================================================================
@@ -382,7 +496,8 @@ function Apply-ChildHivePolicies {
             if (-not (Test-Path $KeyPath)) {
                 New-Item -Path $KeyPath -Force -ErrorAction SilentlyContinue | Out-Null
             }
-            New-ItemProperty -Path $KeyPath -Name $Policy.Name -Value $Policy.Value -PropertyType DWord -Force -ErrorAction SilentlyContinue | Out-Null
+            $PropType = if ($Policy.Value -is [string]) { "String" } else { "DWord" }
+            New-ItemProperty -Path $KeyPath -Name $Policy.Name -Value $Policy.Value -PropertyType $PropType -Force -ErrorAction SilentlyContinue | Out-Null
         } catch {
             Write-Log -Message "Failed to set child policy $($Policy.Name) at $($Policy.SubPath): $_" -Type "WARN" -Color Yellow
         }
@@ -454,6 +569,85 @@ function Remove-ChildLogoutShortcut {
     }
 }
 
+function Apply-EdgePolicies {
+    <#
+        Applies deep lockdown policies to Microsoft Edge via HKLM.
+        Disables bookmarks, settings, incognito, dev tools, extensions, downloads, etc.
+    #>
+    Write-Log -Message "Applying Edge deep lockdown policies..." -Type "INFO" -Color Yellow
+    $EdgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+    if (-not (Test-Path $EdgePolicyPath)) { New-Item -Path $EdgePolicyPath -Force -ErrorAction SilentlyContinue | Out-Null }
+
+    $Policies = @{
+        "BookmarkBarEnabled" = 0
+        "EdgeCollectionsEnabled" = 0
+        "BrowserAddProfileEnabled" = 0
+        "BrowserGuestModeEnabled" = 0
+        "BrowserSignin" = 0
+        "DeveloperToolsAvailability" = 2
+        "HideFirstRunExperience" = 1
+        "InPrivateModeAvailability" = 1
+        "PasswordManagerEnabled" = 0
+        "SyncDisabled" = 1
+        "AllowDeleteBrowserHistory" = 0
+        "ForceGoogleSafeSearch" = 1
+        "ForceYouTubeRestrict" = 1
+        "DownloadRestrictions" = 3
+        "DefaultSearchProviderEnabled" = 1
+        "DefaultSearchProviderName" = "Bing"
+        "DefaultSearchProviderSearchURL" = "https://www.bing.com/search?q={searchTerms}"
+        "HomepageLocation" = "https://www.bing.com"
+        "NewTabPageLocation" = "https://www.bing.com"
+        "ShowHomeButton" = 1
+        "PreventSmartScreenPromptOverride" = 1
+        "SmartScreenPuaEnabled" = 1
+    }
+
+    foreach ($Name in $Policies.Keys) {
+        $Value = $Policies[$Name]
+        $Type = if ($Value -is [string]) { "String" } else { "DWord" }
+        try {
+            Set-ItemProperty -Path $EdgePolicyPath -Name $Name -Value $Value -Type $Type -Force -ErrorAction SilentlyContinue
+        } catch {
+            Write-Log -Message "Failed to set Edge policy $Name`: $_" -Type "WARN" -Color Yellow
+        }
+    }
+
+    # URL Blocklist (prevent access to internal settings pages)
+    $UrlBlockPath = Join-Path $EdgePolicyPath "URLBlocklist"
+    if (-not (Test-Path $UrlBlockPath)) { New-Item -Path $UrlBlockPath -Force -ErrorAction SilentlyContinue | Out-Null }
+    $BlockedUrls = @("edge://settings","edge://flags","edge://extensions","edge://downloads","edge://passwords","edge://history","edge://bookmarks","chrome://settings","chrome://flags","about:config")
+    $i = 1
+    foreach ($Url in $BlockedUrls) {
+        Set-ItemProperty -Path $UrlBlockPath -Name "$i" -Value $Url -Type String -Force -ErrorAction SilentlyContinue
+        $i++
+    }
+
+    # Extension Install Blocklist (block all extensions)
+    $ExtBlockPath = Join-Path $EdgePolicyPath "ExtensionInstallBlocklist"
+    if (-not (Test-Path $ExtBlockPath)) { New-Item -Path $ExtBlockPath -Force -ErrorAction SilentlyContinue | Out-Null }
+    Set-ItemProperty -Path $ExtBlockPath -Name "1" -Value "*" -Type String -Force -ErrorAction SilentlyContinue
+
+    Write-Log -Message "Edge deep lockdown policies applied." -Type "SUCCESS" -Color Green
+}
+
+function Remove-EdgePolicies {
+    <#
+        Removes Edge deep lockdown policies.
+    #>
+    Write-Log -Message "Removing Edge deep lockdown policies..." -Type "INFO" -Color Yellow
+    $EdgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+    if (Test-Path $EdgePolicyPath) {
+        $Keys = @("BookmarkBarEnabled","EdgeCollectionsEnabled","BrowserAddProfileEnabled","BrowserGuestModeEnabled","BrowserSignin","DeveloperToolsAvailability","HideFirstRunExperience","InPrivateModeAvailability","PasswordManagerEnabled","SyncDisabled","AllowDeleteBrowserHistory","ForceGoogleSafeSearch","ForceYouTubeRestrict","DownloadRestrictions","DefaultSearchProviderEnabled","DefaultSearchProviderName","DefaultSearchProviderSearchURL","HomepageLocation","NewTabPageLocation","ShowHomeButton","PreventSmartScreenPromptOverride","SmartScreenPuaEnabled")
+        foreach ($Key in $Keys) {
+            Remove-ItemProperty -Path $EdgePolicyPath -Name $Key -ErrorAction SilentlyContinue
+        }
+        Remove-Item -Path (Join-Path $EdgePolicyPath "URLBlocklist") -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path (Join-Path $EdgePolicyPath "ExtensionInstallBlocklist") -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Write-Log -Message "Edge deep lockdown policies removed." -Type "SUCCESS" -Color Green
+}
+
 function Harden-FileACL {
     <#
         Reusable ACL hardener for a single file (e.g., .lnk shortcuts).
@@ -484,9 +678,10 @@ function Harden-FileACL {
 function Set-ParentPassword {
     <#
         Prompts the admin to set (or change) the Parent Mode password.
-        Stores a SHA256 hash in the protected registry key.
+        Stores a salted SHA256 hash in the protected registry key.
     #>
     $PwRegName = "OSGuardParentPasswordHash"
+    $SaltRegName = "OSGuardParentPasswordSalt"
     Write-Host "`n[SET PARENT MODE PASSWORD]" -ForegroundColor Cyan
     $NewPw = Read-Host "Enter new Parent Mode password" -AsSecureString
     $ConfirmPw = Read-Host "Confirm new Parent Mode password" -AsSecureString
@@ -496,15 +691,21 @@ function Set-ParentPassword {
         Write-Host "[ERROR] Passwords do not match. Password NOT changed." -ForegroundColor Red
         return
     }
-    if ($NewPlain.Length -lt 4) {
-        Write-Host "[ERROR] Password must be at least 4 characters." -ForegroundColor Red
+    if ($NewPlain.Length -lt 8) {
+        Write-Host "[ERROR] Password must be at least 8 characters." -ForegroundColor Red
         return
     }
-    $Hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($NewPlain))
+    # Generate a 16-byte random salt
+    $Salt = [byte[]]::new(16)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($Salt)
+    $SaltStr = [Convert]::ToBase64String($Salt)
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($SaltStr + $NewPlain)
+    $Hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($Bytes)
     $HashStr = ([System.BitConverter]::ToString($Hash) -replace "-", "").ToLower()
     try {
         if (-not (Test-Path $IntegrityRegPath)) { New-Item -Path $IntegrityRegPath -Force | Out-Null }
         Set-ItemProperty -Path $IntegrityRegPath -Name $PwRegName -Value $HashStr -Type String -Force -ErrorAction Stop
+        Set-ItemProperty -Path $IntegrityRegPath -Name $SaltRegName -Value $SaltStr -Type String -Force -ErrorAction Stop
         # Harden the registry key so only SYSTEM can read the hash
         $RegKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SOFTWARE\Microsoft\Windows\CurrentVersion\WpnPlatform\Settings", [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [System.Security.AccessControl.RegistryRights]::ChangePermissions)
         if ($RegKey) {
@@ -516,7 +717,7 @@ function Set-ParentPassword {
             $RegKey.SetAccessControl($Acl)
             $RegKey.Close()
         }
-        Write-Log -Message "Parent Mode password hash stored." -Type "SUCCESS" -Color Green
+        Write-Log -Message "Parent Mode salted password hash stored." -Type "SUCCESS" -Color Green
         Write-Host "[SUCCESS] Parent Mode password updated." -ForegroundColor Green
     } catch {
         Write-Log -Message "Failed to store parent password hash: $_" -Type "ERROR" -Color Red
@@ -527,23 +728,502 @@ function Set-ParentPassword {
 function Test-ParentPassword {
     <#
         Prompts for the Parent Mode password and returns $true if correct.
+        Uses the stored salt to compute the hash.
     #>
     $PwRegName = "OSGuardParentPasswordHash"
+    $SaltRegName = "OSGuardParentPasswordSalt"
     $StoredHash = $null
+    $StoredSalt = $null
     try { $StoredHash = (Get-ItemProperty -Path $IntegrityRegPath -Name $PwRegName -ErrorAction Stop).$PwRegName } catch {}
-    if (-not $StoredHash) {
+    try { $StoredSalt = (Get-ItemProperty -Path $IntegrityRegPath -Name $SaltRegName -ErrorAction Stop).$SaltRegName } catch {}
+    if (-not $StoredHash -or -not $StoredSalt) {
         Write-Host "[ERROR] No Parent Mode password set. Run 'oslock -SetParentPassword' first." -ForegroundColor Red
         return $false
     }
     $InputPw = Read-Host "Enter Parent Mode password" -AsSecureString
     $InputPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($InputPw))
-    $InputHash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($InputPlain))
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($StoredSalt + $InputPlain)
+    $InputHash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($Bytes)
     $InputHashStr = ([System.BitConverter]::ToString($InputHash) -replace "-", "").ToLower()
     if ($InputHashStr -eq $StoredHash) {
         return $true
     } else {
         Write-Host "[ERROR] Incorrect password." -ForegroundColor Red
         return $false
+    }
+}
+
+function Start-WindowGuard {
+    <#
+        Starts a background process that monitors for new windows during Parent Mode.
+        If a new process with a visible window is detected, it prompts for the Parent Mode password.
+        3 wrong passwords or Cancel triggers immediate lock.
+    #>
+    $GuardPath = Join-Path $InstallDir "WindowGuard.ps1"
+    $GuardContent = @'
+$ErrorActionPreference = "Stop"
+$RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WpnPlatform\Settings"
+$Hash = $null
+$Salt = $null
+try { $Hash = (Get-ItemProperty -Path $RegPath -Name "OSGuardParentPasswordHash" -ErrorAction Stop).OSGuardParentPasswordHash } catch {}
+try { $Salt = (Get-ItemProperty -Path $RegPath -Name "OSGuardParentPasswordSalt" -ErrorAction Stop).OSGuardParentPasswordSalt } catch {}
+if (-not $Hash -or -not $Salt) { exit }
+
+Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+
+function Test-GuardPassword {
+    param([string]$Prompt)
+    $Pw = [Microsoft.VisualBasic.Interaction]::InputBox($Prompt, "Parent Mode Window Guard", "", -1, -1)
+    if ([string]::IsNullOrWhiteSpace($Pw)) { return $false }
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Salt + $Pw)
+    $InputHash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($Bytes)
+    $InputHashStr = ([System.BitConverter]::ToString($InputHash) -replace "-", "").ToLower()
+    return ($InputHashStr -eq $Hash)
+}
+
+$SystemProcs = @("explorer","SearchApp","SearchUI","ShellExperienceHost","TextInputHost","ApplicationFrameHost","sihost","RuntimeBroker","dllhost","StartMenuExperienceHost","SecurityHealthSystray","WpnUserService","Dwm","csrss","lsass","services","smss","wininit","winlogon","fontdrvhost","Memory Compression","System","Registry","Secure System","Idle")
+
+$InitialProcs = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $SystemProcs -notcontains $_.ProcessName } | Select-Object -ExpandProperty Id
+$KnownProcs = @($InitialProcs)
+$FailureCount = 0
+
+while ($true) {
+    Start-Sleep -Seconds 5
+    try {
+        $Active = (Get-ItemProperty -Path $RegPath -Name "OSGuardParentModeActive" -ErrorAction Stop).OSGuardParentModeActive
+    } catch { $Active = 0 }
+    if ($Active -ne 1) { break }
+
+    $CurrentProcs = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $SystemProcs -notcontains $_.ProcessName } | Select-Object Id, ProcessName
+    $NewProcs = $CurrentProcs | Where-Object { $KnownProcs -notcontains $_.Id }
+
+    if ($NewProcs.Count -gt 0) {
+        $Names = ($NewProcs | Select-Object -ExpandProperty ProcessName -Unique) -join ", "
+        $Result = Test-GuardPassword -Prompt "New window detected ($Names). Enter password to continue, or click Cancel to lock."
+        if (-not $Result) {
+            $FailureCount++
+            if ($FailureCount -ge 3) {
+                try { & "C:\Windows\oslock.cmd" -LockNow } catch { try { Stop-Process -Name "powershell" -Force } catch {} }
+                break
+            }
+        } else {
+            $FailureCount = 0
+            $KnownProcs = @($CurrentProcs | Select-Object -ExpandProperty Id)
+        }
+    } else {
+        $KnownProcs = @($CurrentProcs | Select-Object -ExpandProperty Id)
+    }
+}
+'@
+    try {
+        Set-Content -Path $GuardPath -Value $GuardContent -Encoding UTF8 -Force
+        $GuardAcl = Get-Acl -Path $GuardPath
+        $GuardAcl.SetOwner($SidSystem)
+        $GuardAcl.SetAccessRuleProtection($true, $false)
+        $GuardAcl.Access | ForEach-Object { $GuardAcl.RemoveAccessRule($_) | Out-Null }
+        $GuardAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidSystem, "FullControl", "None", "None", "Allow")))
+        $GuardAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidAdmin, "ReadAndExecute", "None", "None", "Allow")))
+        Set-Acl -Path $GuardPath -AclObject $GuardAcl -ErrorAction SilentlyContinue
+    } catch {
+        Write-Log -Message "Failed to write WindowGuard script: $_" -Type "WARN" -Color Yellow
+    }
+    try {
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$GuardPath`"" -WindowStyle Hidden
+        Write-Log -Message "Window Guard started for Parent Mode session." -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to start Window Guard: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function Stop-WindowGuard {
+    try {
+        $Procs = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" | Where-Object { $_.CommandLine -like "*WindowGuard.ps1*" }
+        foreach ($Proc in $Procs) {
+            Stop-Process -Id $Proc.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+        Write-Log -Message "Window Guard stopped." -Type "INFO" -Color Gray
+    } catch {}
+}
+
+function Harden-ScreenTimeFile {
+    param([string]$FilePath)
+    if (-not (Test-Path $FilePath)) { return }
+    try {
+        $Acl = Get-Acl -Path $FilePath
+        $Acl.SetOwner($SidSystem)
+        $Acl.SetAccessRuleProtection($true, $false)
+        $Acl.Access | ForEach-Object { $Acl.RemoveAccessRule($_) | Out-Null }
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidSystem, "FullControl", "None", "None", "Allow")))
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidAdmin, "Read", "None", "None", "Allow")))
+        $ChildSidValue = Get-ChildSid
+        if ($ChildSidValue) {
+            $ChildSidObj = New-Object System.Security.Principal.SecurityIdentifier($ChildSidValue)
+            $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($ChildSidObj, "Read", "None", "None", "Deny")))
+        }
+        Set-Acl -Path $FilePath -AclObject $Acl -ErrorAction Stop
+    } catch {
+        Write-Log -Message "Failed to harden ScreenTime file $FilePath`: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function Get-ScreenTimeConfig {
+    if (Test-Path $ScreenTimeConfigFile) {
+        try { return Get-Content -Path $ScreenTimeConfigFile -Raw -ErrorAction Stop | ConvertFrom-Json } catch {
+            Write-Log -Message "Failed to read ScreenTime config: $_" -Type "WARN" -Color Yellow
+        }
+    }
+    return $null
+}
+
+function Set-ScreenTimeConfig {
+    param(
+        [string]$DailyStart = "08:00",
+        [string]$DailyEnd = "20:00",
+        [int]$DailyMaxMinutes = 120,
+        [int]$BrowserMaxMinutes = 60,
+        [int]$WeekendDailyMaxMinutes = 180,
+        [int]$WeekendBrowserMaxMinutes = 90,
+        [bool]$Enabled = $true
+    )
+    $Config = @{
+        Enabled = $Enabled
+        DailyStart = $DailyStart
+        DailyEnd = $DailyEnd
+        DailyMaxMinutes = $DailyMaxMinutes
+        BrowserMaxMinutes = $BrowserMaxMinutes
+        WeekendDailyMaxMinutes = $WeekendDailyMaxMinutes
+        WeekendBrowserMaxMinutes = $WeekendBrowserMaxMinutes
+    }
+    try {
+        $Config | ConvertTo-Json -Depth 3 | Set-Content -Path $ScreenTimeConfigFile -Encoding UTF8 -Force -ErrorAction Stop
+        Harden-ScreenTimeFile -FilePath $ScreenTimeConfigFile
+        Write-Log -Message "ScreenTime config saved." -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to save ScreenTime config: $_" -Type "ERROR" -Color Red
+    }
+}
+
+function Get-ScreenTimeTracker {
+    if (Test-Path $ScreenTimeTrackerFile) {
+        try { return Get-Content -Path $ScreenTimeTrackerFile -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
+    }
+    return $null
+}
+
+function Update-ScreenTimeTracker {
+    param([PSCustomObject]$Tracker)
+    try {
+        $Tracker | ConvertTo-Json -Depth 3 | Set-Content -Path $ScreenTimeTrackerFile -Encoding UTF8 -Force -ErrorAction Stop
+        Harden-ScreenTimeFile -FilePath $ScreenTimeTrackerFile
+    } catch {
+        Write-Log -Message "Failed to update ScreenTime tracker: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function Reset-ScreenTimeTrackerIfNewDay {
+    $Tracker = Get-ScreenTimeTracker
+    $Today = (Get-Date).ToString("yyyy-MM-dd")
+    if (-not $Tracker -or $Tracker.LastDate -ne $Today) {
+        $Tracker = @{
+            LastDate = $Today
+            DailySecondsUsed = 0
+            BrowserSecondsUsed = 0
+            LastResetTimestamp = (Get-Date -Format "o")
+            BrowserAllowanceActive = $false
+            BrowserAllowanceExpiry = $null
+            BrowserAllowanceMinutes = 0
+        }
+        Update-ScreenTimeTracker -Tracker $Tracker
+        Write-Log -Message "ScreenTime tracker reset for new day ($Today)." -Type "INFO" -Color Gray
+    }
+    return $Tracker
+}
+
+function Test-ScreenTimeLimit {
+    $Config = Get-ScreenTimeConfig
+    if (-not $Config -or -not $Config.Enabled) { return $false }
+    $Now = Get-Date
+    $Tracker = Reset-ScreenTimeTrackerIfNewDay
+
+    # Check daily hours
+    try {
+        $StartTime = [DateTime]::ParseExact($Config.DailyStart, "HH:mm", $null)
+        $EndTime = [DateTime]::ParseExact($Config.DailyEnd, "HH:mm", $null)
+        $StartToday = $Now.Date.Add($StartTime.TimeOfDay)
+        $EndToday = $Now.Date.Add($EndTime.TimeOfDay)
+        if ($Now -lt $StartToday -or $Now -gt $EndToday) { return $true }
+    } catch {
+        Write-Log -Message "ScreenTime config has invalid time format." -Type "WARN" -Color Yellow
+    }
+
+    # Check daily max minutes
+    $DailyUsedMin = [math]::Floor($Tracker.DailySecondsUsed / 60)
+    $IsWeekend = ($Now.DayOfWeek -eq 'Saturday') -or ($Now.DayOfWeek -eq 'Sunday')
+    $DailyLimit = if ($IsWeekend -and $Config.WeekendDailyMaxMinutes) { $Config.WeekendDailyMaxMinutes } else { $Config.DailyMaxMinutes }
+    if ($DailyUsedMin -ge $DailyLimit) { return $true }
+
+    # Check browser allowance
+    if ($Tracker.BrowserAllowanceActive -eq $true) {
+        if ($Tracker.BrowserAllowanceExpiry -and ([DateTime]$Tracker.BrowserAllowanceExpiry) -gt $Now) {
+            return $false
+        } else {
+            $Tracker.BrowserAllowanceActive = $false
+            Update-ScreenTimeTracker -Tracker $Tracker
+        }
+    }
+
+    # Check browser max minutes (total daily)
+    $BrowserUsedMin = [math]::Floor($Tracker.BrowserSecondsUsed / 60)
+    $BrowserLimit = if ($IsWeekend -and $Config.WeekendBrowserMaxMinutes) { $Config.WeekendBrowserMaxMinutes } else { $Config.BrowserMaxMinutes }
+    if ($BrowserUsedMin -ge $BrowserLimit) { return $true }
+
+    return $false
+}
+
+function Invoke-ScreenTimeEnforcement {
+    $Exceeded = Test-ScreenTimeLimit
+    $EdgeProcs = Get-Process -Name "msedge" -ErrorAction SilentlyContinue
+    if ($Exceeded -and $EdgeProcs) {
+        foreach ($Proc in $EdgeProcs) {
+            try { Stop-Process -Id $Proc.Id -Force -ErrorAction Stop } catch {}
+        }
+        Write-Log -Message "ScreenTime limit exceeded. Edge terminated." -Type "SECURITY" -Color Red
+        try {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+            [System.Windows.Forms.MessageBox]::Show("Your browser time is up or outside allowed hours. Please ask your admin for more time.", "Browser Time Limit", "OK", "Warning") | Out-Null
+        } catch {}
+    }
+    $Tracker = Get-ScreenTimeTracker
+    if (-not $Tracker) { return }
+    if ($EdgeProcs) {
+        $Tracker.DailySecondsUsed += 60
+        $Tracker.BrowserSecondsUsed += 60
+        Update-ScreenTimeTracker -Tracker $Tracker
+    }
+}
+
+function Show-SetScreenTimeDialog {
+    Write-Host "`n=====================================================" -ForegroundColor Cyan
+    Write-Host " SET SCREEN TIME (ADMIN ONLY) " -ForegroundColor Cyan
+    Write-Host "=====================================================" -ForegroundColor Cyan
+    if (-not (Test-ParentPassword)) { return }
+    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+    $Start = [Microsoft.VisualBasic.Interaction]::InputBox("Daily allowed start time (HH:mm):", "Screen Time", "08:00", -1, -1)
+    if ([string]::IsNullOrWhiteSpace($Start)) { return }
+    $End = [Microsoft.VisualBasic.Interaction]::InputBox("Daily allowed end time (HH:mm):", "Screen Time", "20:00", -1, -1)
+    if ([string]::IsNullOrWhiteSpace($End)) { return }
+    $DailyMax = [Microsoft.VisualBasic.Interaction]::InputBox("Daily max computer minutes:", "Screen Time", "120", -1, -1)
+    if ([string]::IsNullOrWhiteSpace($DailyMax) -or -not [int]::TryParse($DailyMax, [ref]$null)) { Write-Host "[ERROR] Invalid daily max." -ForegroundColor Red; return }
+    $BrowserMax = [Microsoft.VisualBasic.Interaction]::InputBox("Daily max browser minutes:", "Screen Time", "60", -1, -1)
+    if ([string]::IsNullOrWhiteSpace($BrowserMax) -or -not [int]::TryParse($BrowserMax, [ref]$null)) { Write-Host "[ERROR] Invalid browser max." -ForegroundColor Red; return }
+    Set-ScreenTimeConfig -DailyStart $Start -DailyEnd $End -DailyMaxMinutes ([int]$DailyMax) -BrowserMaxMinutes ([int]$BrowserMax) -Enabled $true
+    Write-Host "[SUCCESS] ScreenTime settings updated." -ForegroundColor Green
+    Write-Log -Message "Admin updated ScreenTime settings." -Type "ACTION" -Color Magenta
+}
+
+function Show-ScreenTimeStatus {
+    $Config = Get-ScreenTimeConfig
+    $Tracker = Reset-ScreenTimeTrackerIfNewDay
+    Write-Host "`n=====================================================" -ForegroundColor Cyan
+    Write-Host " SCREEN TIME STATUS " -ForegroundColor Cyan
+    Write-Host "=====================================================" -ForegroundColor Cyan
+    if (-not $Config -or -not $Config.Enabled) {
+        Write-Host "  ScreenTime is not configured or disabled." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Allowed hours: $($Config.DailyStart) - $($Config.DailyEnd)" -ForegroundColor Gray
+        Write-Host "  Daily max: $($Config.DailyMaxMinutes) minutes" -ForegroundColor Gray
+        Write-Host "  Browser max: $($Config.BrowserMaxMinutes) minutes" -ForegroundColor Gray
+        $DailyUsed = [math]::Floor($Tracker.DailySecondsUsed / 60)
+        $BrowserUsed = [math]::Floor($Tracker.BrowserSecondsUsed / 60)
+        Write-Host "  Daily used: $DailyUsed minutes" -ForegroundColor Gray
+        Write-Host "  Browser used: $BrowserUsed minutes" -ForegroundColor Gray
+        if ($Tracker.BrowserAllowanceActive -eq $true -and $Tracker.BrowserAllowanceExpiry -and ([DateTime]$Tracker.BrowserAllowanceExpiry) -gt (Get-Date)) {
+            Write-Host "  Active browser allowance: expires at $([DateTime]::Parse($Tracker.BrowserAllowanceExpiry).ToString('HH:mm'))" -ForegroundColor Green
+        } else {
+            Write-Host "  No active browser allowance." -ForegroundColor Yellow
+        }
+    }
+    Write-Host "=====================================================" -ForegroundColor Cyan
+}
+
+function Show-GrantBrowserTimeDialog {
+    Write-Host "`n=====================================================" -ForegroundColor Cyan
+    Write-Host " GRANT BROWSER TIME (ADMIN ONLY) " -ForegroundColor Cyan
+    Write-Host "=====================================================" -ForegroundColor Cyan
+    if (-not (Test-ParentPassword)) { return }
+    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+    $Minutes = [Microsoft.VisualBasic.Interaction]::InputBox("Enter minutes to grant the child for browser access:`n(Presets: 15, 30, 60, 120)", "Grant Browser Time", "30", -1, -1)
+    if ([string]::IsNullOrWhiteSpace($Minutes)) { return }
+    if (-not [int]::TryParse($Minutes, [ref]$null)) {
+        Write-Host "[ERROR] Invalid number." -ForegroundColor Red
+        return
+    }
+    $MinutesInt = [int]$Minutes
+    if ($MinutesInt -le 0 -or $MinutesInt -gt 720) {
+        Write-Host "[ERROR] Minutes must be between 1 and 720." -ForegroundColor Red
+        return
+    }
+    $Tracker = Reset-ScreenTimeTrackerIfNewDay
+    $Expiry = (Get-Date).AddMinutes($MinutesInt).ToString("o")
+    $Tracker.BrowserAllowanceActive = $true
+    $Tracker.BrowserAllowanceExpiry = $Expiry
+    $Tracker.BrowserAllowanceMinutes = $MinutesInt
+    Update-ScreenTimeTracker -Tracker $Tracker
+    Write-Host "`n[SUCCESS] Browser time granted: $MinutesInt minutes (expires at $([DateTime]::Parse($Expiry).ToString('HH:mm')))." -ForegroundColor Green
+    Write-Log -Message "Admin granted $MinutesInt minutes of browser time." -Type "ACTION" -Color Magenta
+}
+
+function New-BrowserLauncher {
+    $LauncherContent = @'
+param([switch]$Request)
+$InstallDir = "C:\ProgramData\OSGuard"
+$TrackerFile = Join-Path $InstallDir "ScreenTimeTracker.json"
+$RequestsDir = Join-Path $InstallDir "Requests"
+function Get-Tracker {
+    if (Test-Path $TrackerFile) {
+        try { return Get-Content -Path $TrackerFile -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
+    }
+    return $null
+}
+function Show-Info {
+    param([string]$Message)
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+    [System.Windows.Forms.MessageBox]::Show($Message, "Browser Access", "OK", "Information") | Out-Null
+}
+$Tracker = Get-Tracker
+$Now = Get-Date
+$Allowed = $false
+if ($Tracker -and $Tracker.BrowserAllowanceActive -eq $true) {
+    if ($Tracker.BrowserAllowanceExpiry -and ([DateTime]$Tracker.BrowserAllowanceExpiry) -gt $Now) {
+        $Allowed = $true
+    }
+}
+if ($Allowed) {
+    Start-Process "msedge.exe" -ErrorAction SilentlyContinue
+} else {
+    Show-Info -Message "Browser is locked. Ask your admin to open 'Grant Browser Time' on their desktop to set a timer."
+    if (-not (Test-Path $RequestsDir)) { New-Item -ItemType Directory -Path $RequestsDir -Force -ErrorAction SilentlyContinue | Out-Null }
+    $ReqFile = Join-Path $RequestsDir ("browser_request_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".txt")
+    @"
+Browser Access Request
+----------------------
+From: Child
+Timestamp: $($Now.ToString("yyyy-MM-dd HH:mm:ss"))
+Message: Child requested browser access but no active allowance exists.
+"@ | Set-Content -Path $ReqFile -Encoding UTF8 -Force -ErrorAction SilentlyContinue
+}
+'@
+    try {
+        Set-Content -Path $BrowserLauncherPath -Value $LauncherContent -Encoding UTF8 -Force
+        Harden-ScreenTimeFile -FilePath $BrowserLauncherPath
+        Write-Log -Message "Browser launcher script written." -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to write browser launcher: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function New-BrowserRequestShortcut {
+    $ChildProfilePath = $null
+    try {
+        $ChildProfile = Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue | Where-Object { $_.LocalPath -like "*\$ChildUser" } | Select-Object -First 1
+        if ($ChildProfile) { $ChildProfilePath = $ChildProfile.LocalPath }
+    } catch {}
+    if (-not $ChildProfilePath) { $ChildProfilePath = "C:\Users\$ChildUser" }
+    $DesktopPath = Join-Path $ChildProfilePath "Desktop"
+    if (-not (Test-Path $DesktopPath)) { New-Item -ItemType Directory -Path $DesktopPath -Force -ErrorAction SilentlyContinue | Out-Null }
+    $ShortcutPath = Join-Path $DesktopPath "Browser Request.lnk"
+    try {
+        $Wsh = New-Object -ComObject WScript.Shell
+        $Lnk = $Wsh.CreateShortcut($ShortcutPath)
+        $Lnk.TargetPath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+        $Lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$BrowserLauncherPath`""
+        $Lnk.Description = "Request browser access (requires admin approval)"
+        $Lnk.IconLocation = "shell32.dll,14"
+        $Lnk.Save()
+        $bytes = [System.IO.File]::ReadAllBytes($ShortcutPath)
+        $bytes[0x15] = $bytes[0x15] -bor 0x20
+        [System.IO.File]::WriteAllBytes($ShortcutPath, $bytes)
+        Harden-FileACL -FilePath $ShortcutPath
+        Write-Log -Message "Created child browser request shortcut at '$ShortcutPath'." -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to create browser request shortcut: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function Remove-BrowserRequestShortcut {
+    $ChildProfilePath = $null
+    try {
+        $ChildProfile = Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue | Where-Object { $_.LocalPath -like "*\$ChildUser" } | Select-Object -First 1
+        if ($ChildProfile) { $ChildProfilePath = $ChildProfile.LocalPath }
+    } catch {}
+    if (-not $ChildProfilePath) { $ChildProfilePath = "C:\Users\$ChildUser" }
+    $Path = Join-Path $ChildProfilePath "Desktop\Browser Request.lnk"
+    if (Test-Path $Path) {
+        try {
+            $Acl = Get-Acl -Path $Path
+            $Acl.SetAccessRuleProtection($false, $false)
+            Set-Acl -Path $Path -AclObject $Acl -ErrorAction SilentlyContinue
+        } catch {}
+        Remove-Item -Path $Path -Force -ErrorAction SilentlyContinue
+        Write-Log -Message "Removed browser request shortcut." -Type "INFO" -Color Gray
+    }
+}
+
+function New-GrantBrowserTimeShortcut {
+    $AdminProfile = $env:USERPROFILE
+    $AdminDesktop = Join-Path $AdminProfile "Desktop"
+    if (-not (Test-Path $AdminDesktop)) { New-Item -ItemType Directory -Path $AdminDesktop -Force -ErrorAction SilentlyContinue | Out-Null }
+    $ShortcutPath = Join-Path $AdminDesktop "Grant Browser Time.lnk"
+    try {
+        $Wsh = New-Object -ComObject WScript.Shell
+        $Lnk = $Wsh.CreateShortcut($ShortcutPath)
+        $Lnk.TargetPath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+        $Lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$InstallScript`" -GrantBrowserTime"
+        $Lnk.Description = "Grant the child browser access time (password protected)"
+        $Lnk.IconLocation = "shell32.dll,14"
+        $Lnk.Save()
+        $bytes = [System.IO.File]::ReadAllBytes($ShortcutPath)
+        $bytes[0x15] = $bytes[0x15] -bor 0x20
+        [System.IO.File]::WriteAllBytes($ShortcutPath, $bytes)
+        Harden-FileACL -FilePath $ShortcutPath
+        Write-Log -Message "Created admin 'Grant Browser Time' shortcut at '$ShortcutPath'." -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to create Grant Browser Time shortcut: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function Remove-GrantBrowserTimeShortcut {
+    $AdminProfile = $env:USERPROFILE
+    $AdminDesktop = Join-Path $AdminProfile "Desktop"
+    $Path = Join-Path $AdminDesktop "Grant Browser Time.lnk"
+    if (Test-Path $Path) {
+        try {
+            $Acl = Get-Acl -Path $Path
+            $Acl.SetAccessRuleProtection($false, $false)
+            Set-Acl -Path $Path -AclObject $Acl -ErrorAction SilentlyContinue
+        } catch {}
+        Remove-Item -Path $Path -Force -ErrorAction SilentlyContinue
+        Write-Log -Message "Removed Grant Browser Time shortcut." -Type "INFO" -Color Gray
+    }
+}
+
+function Install-ScreenTimeWatcher {
+    Write-Log -Message "Installing ScreenTime watcher task..." -Type "INFO" -Color Yellow
+    try {
+        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$InstallScript`" -ScreenTimeEnforce"
+        $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 9999)
+        $Principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        Register-ScheduledTask -TaskName $ScreenTimeTaskName -Action $Action -Trigger $Trigger -Principal $Principal -Force | Out-Null
+        Write-Log -Message "ScreenTime watcher '$ScreenTimeTaskName' registered (1-minute heartbeat)." -Type "SUCCESS" -Color Green
+    } catch {
+        Write-Log -Message "Failed to register ScreenTime watcher: $_" -Type "ERROR" -Color Red
+    }
+}
+
+function Remove-ScreenTimeWatcher {
+    if (Get-ScheduledTask -TaskName $ScreenTimeTaskName -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $ScreenTimeTaskName -Confirm:$false | Out-Null
+        Write-Log -Message "Removed ScreenTime watcher task." -Type "INFO" -Color Gray
     }
 }
 
@@ -555,6 +1235,15 @@ function Enter-ParentMode {
     Write-Host "`n=====================================================" -ForegroundColor Cyan
     Write-Host " ENTER PARENT MODE (ADMIN UNLOCK) " -ForegroundColor Cyan
     Write-Host "=====================================================" -ForegroundColor Cyan
+
+    if (-not $SilentLock) {
+        $IntegrityCheck = Test-IntegrityStatus
+        if ($IntegrityCheck -eq $false) {
+            Write-Log -Message "Action blocked: script integrity failure before Enter-ParentMode." -Type "SECURITY" -Color Red
+            Write-Host "[BLOCKED] Tamper detected. Use uninstall and reinstall." -ForegroundColor Red -BackgroundColor Black
+            return
+        }
+    }
 
     if (-not (Test-ParentPassword)) { return }
 
@@ -570,6 +1259,19 @@ function Enter-ParentMode {
         try { Remove-ItemProperty -Path $KeyPath -Name $Policy.Name -Force -ErrorAction SilentlyContinue } catch {}
     }
 
+    # Refresh Windows UI so the unlock takes effect immediately
+    Write-Log -Message "Refreshing Windows UI after unlock..." -Type "INFO" -Color Gray
+    try {
+        Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+        Start-Process "explorer" -ErrorAction SilentlyContinue
+    } catch {
+        Write-Log -Message "Failed to restart explorer for UI refresh: $_" -Type "WARN" -Color Yellow
+    }
+
+    # Create Admin tool shortcuts for Parent Mode session
+    New-ParentModeAdminTools
+
     # Set parent mode flag and timestamp
     try {
         if (-not (Test-Path $IntegrityRegPath)) { New-Item -Path $IntegrityRegPath -Force | Out-Null }
@@ -584,6 +1286,9 @@ function Enter-ParentMode {
     Write-Host "  Auto-lock after 5 minutes of inactivity (AFK timer)." -ForegroundColor Yellow
     Write-Host "  Click 'Lock Now' on the admin desktop or run 'oslock -LockNow' to re-lock immediately." -ForegroundColor Yellow
     Write-Host "=====================================================" -ForegroundColor Cyan
+
+    # Start Window Guard to detect new windows and re-prompt for password
+    Start-WindowGuard
 }
 
 function Exit-ParentMode {
@@ -591,8 +1296,24 @@ function Exit-ParentMode {
         Re-locks everything and clears the parent mode flag.
     #>
     Write-Log -Message "Exiting Parent Mode and re-locking system..." -Type "ACTION" -Color Magenta
+    Stop-WindowGuard
+    Remove-ParentModeAdminTools
     Enable-OSLock
     Enable-DNSLock
+
+    # Refresh Windows UI so the lock takes effect immediately
+    Write-Log -Message "Refreshing Windows UI after re-lock..." -Type "INFO" -Color Gray
+    try {
+        Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+        Start-Process "explorer" -ErrorAction SilentlyContinue
+    } catch {
+        Write-Log -Message "Failed to restart explorer for UI refresh: $_" -Type "WARN" -Color Yellow
+    }
+
+    # Program Guardian: immediately scan and harden any newly installed programs after Parent Mode
+    Scan-And-Harden-ChildPrograms
+
     try {
         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentModeActive" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentModeTimestamp" -Value "" -Type String -Force -ErrorAction SilentlyContinue
@@ -639,7 +1360,7 @@ function New-ParentModeShortcut {
 function Remove-ParentModeShortcut {
     $AdminProfile = $env:USERPROFILE
     $AdminDesktop = Join-Path $AdminProfile "Desktop"
-    foreach ($Name in @("Parent Mode.lnk", "Lock Now.lnk", "Continue Parent Mode.lnk")) {
+    foreach ($Name in @("Parent Mode.lnk", "Lock Now.lnk", "Continue Parent Mode.lnk", "Admin CMD.lnk", "Admin PowerShell.lnk")) {
         $Path = Join-Path $AdminDesktop $Name
         if (Test-Path $Path) {
             # Relax ACL first so we can delete it
@@ -650,6 +1371,61 @@ function Remove-ParentModeShortcut {
             } catch {}
             Remove-Item -Path $Path -Force -ErrorAction SilentlyContinue
             Write-Log -Message "Removed admin shortcut: $Name" -Type "INFO" -Color Gray
+        }
+    }
+}
+
+function New-ParentModeAdminTools {
+    <#
+        Creates Admin CMD and Admin PowerShell shortcuts on the admin desktop
+        during Parent Mode so the admin can quickly open elevated terminals.
+    #>
+    $AdminProfile = $env:USERPROFILE
+    $AdminDesktop = Join-Path $AdminProfile "Desktop"
+    if (-not (Test-Path $AdminDesktop)) { New-Item -ItemType Directory -Path $AdminDesktop -Force -ErrorAction SilentlyContinue | Out-Null }
+
+    $Tools = @(
+        @{ Name = "Admin CMD.lnk"; Target = "C:\Windows\System32\cmd.exe"; Args = "/k cd %USERPROFILE%"; Icon = "cmd.exe,0"; Desc = "Admin Command Prompt (Parent Mode)" },
+        @{ Name = "Admin PowerShell.lnk"; Target = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"; Args = "-NoExit -Command `"Set-Location ~`""; Icon = "powershell.exe,0"; Desc = "Admin PowerShell (Parent Mode)" }
+    )
+
+    foreach ($T in $Tools) {
+        $Path = Join-Path $AdminDesktop $T.Name
+        try {
+            $Wsh = New-Object -ComObject WScript.Shell
+            $Lnk = $Wsh.CreateShortcut($Path)
+            $Lnk.TargetPath = $T.Target
+            $Lnk.Arguments = $T.Args
+            $Lnk.Description = $T.Desc
+            $Lnk.IconLocation = $T.Icon
+            $Lnk.Save()
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            $bytes[0x15] = $bytes[0x15] -bor 0x20
+            [System.IO.File]::WriteAllBytes($Path, $bytes)
+            Harden-FileACL -FilePath $Path
+            Write-Log -Message "Created Parent Mode admin tool: $($T.Name)" -Type "INFO" -Color Gray
+        } catch {
+            Write-Log -Message "Failed to create admin tool $($T.Name): $_" -Type "WARN" -Color Yellow
+        }
+    }
+}
+
+function Remove-ParentModeAdminTools {
+    <#
+        Removes the Admin CMD and Admin PowerShell shortcuts from the admin desktop.
+    #>
+    $AdminProfile = $env:USERPROFILE
+    $AdminDesktop = Join-Path $AdminProfile "Desktop"
+    foreach ($Name in @("Admin CMD.lnk", "Admin PowerShell.lnk")) {
+        $Path = Join-Path $AdminDesktop $Name
+        if (Test-Path $Path) {
+            try {
+                $Acl = Get-Acl -Path $Path
+                $Acl.SetAccessRuleProtection($false, $false)
+                Set-Acl -Path $Path -AclObject $Acl -ErrorAction SilentlyContinue
+            } catch {}
+            Remove-Item -Path $Path -Force -ErrorAction SilentlyContinue
+            Write-Log -Message "Removed admin tool: $Name" -Type "INFO" -Color Gray
         }
     }
 }
@@ -734,6 +1510,201 @@ This request was submitted by the child user and requires administrator approval
     }
 }
 
+function Get-ChildInstallDirectories {
+    <#
+        Discovers program install directories and shortcuts within the child profile.
+        Scans Desktop, Start Menu, AppData\Local\Programs, and AppData\Roaming.
+        Returns an array of unique directory paths.
+    #>
+    $ChildProfilePath = Get-ChildProfilePath
+    if (-not $ChildProfilePath) { return @() }
+
+    $Dirs = [System.Collections.Generic.List[string]]::new()
+
+    # --- Scan common user install locations ---
+    $ScanPaths = @(
+        (Join-Path $ChildProfilePath "AppData\Local\Programs"),
+        (Join-Path $ChildProfilePath "AppData\Local"),
+        (Join-Path $ChildProfilePath "AppData\Roaming"),
+        (Join-Path $ChildProfilePath "Desktop"),
+        (Join-Path $ChildProfilePath "Documents")
+    )
+
+    foreach ($ScanPath in $ScanPaths) {
+        if (-not (Test-Path $ScanPath)) { continue }
+        try {
+            $Candidates = Get-ChildItem -Path $ScanPath -Directory -ErrorAction SilentlyContinue | Where-Object {
+                $Name = $_.Name
+                # Skip Windows system folders that are not user-installed programs
+                if ($Name -match "^(Microsoft|Windows|Temp|Packages|Temp\w*|Media\w*)$") { return $false }
+                # Heuristic: contains .exe or .dll files, or looks like a program folder
+                $HasExe = $null -ne (Get-ChildItem -Path $_.FullName -Filter "*.exe" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1)
+                $HasDll = $null -ne (Get-ChildItem -Path $_.FullName -Filter "*.dll" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1)
+                $HasConfig = $null -ne (Get-ChildItem -Path $_.FullName -Filter "*.json" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1)
+                $HasExe -or $HasDll -or $HasConfig -or ($Name -notmatch "^(Microsoft|Windows|Temp|Packages)$")
+            }
+            foreach ($Candidate in $Candidates) {
+                if (-not $Dirs.Contains($Candidate.FullName)) { $Dirs.Add($Candidate.FullName) }
+            }
+        } catch {}
+    }
+
+    # --- Scan Start Menu shortcuts to discover program targets ---
+    $StartMenuPaths = @(
+        (Join-Path $ChildProfilePath "AppData\Roaming\Microsoft\Windows\Start Menu\Programs"),
+        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
+    )
+    foreach ($StartMenu in $StartMenuPaths) {
+        if (-not (Test-Path $StartMenu)) { continue }
+        try {
+            $Shortcuts = Get-ChildItem -Path $StartMenu -Filter "*.lnk" -Recurse -ErrorAction SilentlyContinue
+            foreach ($Shortcut in $Shortcuts) {
+                try {
+                    $Wsh = New-Object -ComObject WScript.Shell
+                    $Lnk = $Wsh.CreateShortcut($Shortcut.FullName)
+                    $Target = $Lnk.TargetPath
+                    if ($Target -and (Test-Path $Target) -and $Target -match "\.exe$") {
+                        $TargetDir = Split-Path -Parent $Target
+                        if ($TargetDir -and $TargetDir -notlike "*\Windows\*" -and $TargetDir -notlike "*\Program Files\*" -and $TargetDir -notlike "*\System32\*" -and $TargetDir -notlike "*\SysWOW64\*") {
+                            if (-not $Dirs.Contains($TargetDir)) { $Dirs.Add($TargetDir) }
+                        }
+                    }
+                } catch {}
+            }
+        } catch {}
+    }
+
+    return $Dirs.ToArray()
+}
+
+function Harden-ProgramDirectory {
+    <#
+        Hardens a program directory so the child can execute files but cannot:
+        - Modify, delete, or rename files/folders
+        - Change permissions or take ownership
+        - Write new files
+        The child retains ReadAndExecute (can run the game/program).
+    #>
+    param([string]$DirPath)
+    if (-not (Test-Path $DirPath)) { return }
+
+    $ChildSidValue = Get-ChildSid
+    if (-not $ChildSidValue) { return }
+    $ChildSidObj = New-Object System.Security.Principal.SecurityIdentifier($ChildSidValue)
+
+    try {
+        $Acl = Get-Acl -Path $DirPath
+        $Acl.SetOwner($SidSystem)
+        $Acl.SetAccessRuleProtection($true, $false)
+
+        # Remove any existing child-specific rules
+        $Acl.Access | Where-Object {
+            try { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq $ChildSidValue } catch { $false }
+        } | ForEach-Object { $Acl.RemoveAccessRule($_) | Out-Null }
+
+        # Child: ReadAndExecute on files (can run programs), but Deny Modify/Delete/Write on folder+files
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $ChildSidObj, "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow")))
+
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $ChildSidObj, "Modify", "ContainerInherit,ObjectInherit", "None", "Deny")))
+
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $ChildSidObj, "Delete", "ContainerInherit,ObjectInherit", "None", "Deny")))
+
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $ChildSidObj, "WriteData", "ContainerInherit,ObjectInherit", "None", "Deny")))
+
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $ChildSidObj, "AppendData", "ContainerInherit,ObjectInherit", "None", "Deny")))
+
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $ChildSidObj, "ChangePermissions", "ContainerInherit,ObjectInherit", "None", "Deny")))
+
+        $Acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $ChildSidObj, "TakeOwnership", "ContainerInherit,ObjectInherit", "None", "Deny")))
+
+        Set-Acl -Path $DirPath -AclObject $Acl -ErrorAction Stop
+        Write-Log -Message "Program directory hardened: $DirPath" -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to harden program directory $DirPath`: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function Harden-ProgramShortcuts {
+    <#
+        Hardens all .lnk shortcuts in the child profile Desktop and Start Menu
+        so the child cannot delete, modify, or rename them.
+    #>
+    $ChildProfilePath = Get-ChildProfilePath
+    if (-not $ChildProfilePath) { return }
+
+    $ShortcutPaths = @(
+        (Join-Path $ChildProfilePath "Desktop"),
+        (Join-Path $ChildProfilePath "AppData\Roaming\Microsoft\Windows\Start Menu\Programs")
+    )
+
+    foreach ($BasePath in $ShortcutPaths) {
+        if (-not (Test-Path $BasePath)) { continue }
+        try {
+            $Shortcuts = Get-ChildItem -Path $BasePath -Filter "*.lnk" -Recurse -ErrorAction SilentlyContinue
+            foreach ($Sc in $Shortcuts) {
+                try {
+                    Harden-FileACL -FilePath $Sc.FullName
+                } catch {
+                    Write-Log -Message "Failed to harden shortcut $($Sc.FullName): $_" -Type "WARN" -Color Yellow
+                }
+            }
+        } catch {}
+    }
+}
+
+function Scan-And-Harden-ChildPrograms {
+    <#
+        Main Program Guardian scan routine.
+        Discovers newly installed programs in the child profile and hardens them.
+        Also hardens all shortcuts.
+    #>
+    Write-Log -Message "Program Guardian: scanning child profile for installed programs..." -Type "ACTION" -Color Cyan
+
+    $DiscoveredDirs = Get-ChildInstallDirectories
+    if ($DiscoveredDirs.Count -eq 0) {
+        Write-Log -Message "Program Guardian: no user-installed programs found in child profile." -Type "INFO" -Color Gray
+    } else {
+        Write-Log -Message "Program Guardian: discovered $($DiscoveredDirs.Count) program directories." -Type "INFO" -Color Gray
+        foreach ($Dir in $DiscoveredDirs) {
+            Harden-ProgramDirectory -DirPath $Dir
+        }
+    }
+
+    Harden-ProgramShortcuts
+    Write-Log -Message "Program Guardian: scan complete." -Type "SUCCESS" -Color Green
+}
+
+function Install-ProgramGuardian {
+    <#
+        Installs the OSGuard-ProgramScanner scheduled task (10-minute heartbeat).
+        This task scans the child profile for new programs and hardens them automatically.
+    #>
+    Write-Log -Message "Installing Program Guardian scheduled task..." -Type "INFO" -Color Yellow
+    try {
+        $ScanAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$InstallScript`" -ProgramScan"
+        $ScanTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10) -RepetitionDuration (New-TimeSpan -Days 9999)
+        $ScanPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        Register-ScheduledTask -TaskName $ProgramScannerName -Action $ScanAction -Trigger $ScanTrigger -Principal $ScanPrincipal -Force | Out-Null
+        Write-Log -Message "Program Guardian '$ProgramScannerName' registered (10-minute heartbeat)." -Type "SUCCESS" -Color Green
+    } catch {
+        Write-Log -Message "Failed to register Program Guardian task: $_" -Type "ERROR" -Color Red
+    }
+}
+
+function Remove-ProgramGuardian {
+    if (Get-ScheduledTask -TaskName $ProgramScannerName -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $ProgramScannerName -Confirm:$false | Out-Null
+        Write-Log -Message "Removed Program Guardian task: $ProgramScannerName" -Type "INFO" -Color Gray
+    }
+}
+
 function Apply-MachinePolicies {
     Write-Log -Message "Applying machine-wide OS policies (UAC max, Store block, Installer block, USB disable, SmartScreen, Fast User Switching)..." -Type "INFO" -Color Yellow
     foreach ($Policy in $MachinePolicies) {
@@ -781,11 +1752,24 @@ function Remove-MachinePolicies {
     } catch {
         Write-Log -Message "Could not restore USBSTOR service: $_" -Type "WARN" -Color Yellow
     }
+    Remove-EdgePolicies
+    Remove-BrowserRequestShortcut
+    Remove-GrantBrowserTimeShortcut
+    Remove-ScreenTimeWatcher
     Write-Log -Message "Machine-wide OS policies removed (UAC restored to default)." -Type "SUCCESS" -Color Green
 }
 
 function Enable-OSLock {
     Write-Log -Message "Initiating OS Child Lockdown..." -Type "ACTION" -Color Magenta
+
+    if (-not $SilentLock) {
+        $IntegrityCheck = Test-IntegrityStatus
+        if ($IntegrityCheck -eq $false) {
+            Write-Log -Message "Action blocked: script integrity failure before Enable-OSLock." -Type "SECURITY" -Color Red
+            Write-Host "[BLOCKED] Tamper detected. Use uninstall and reinstall." -ForegroundColor Red -BackgroundColor Black
+            return
+        }
+    }
 
     # 1. Ensure child account exists and is a standard user (passwordless)
     New-ChildAccount | Out-Null
@@ -810,6 +1794,13 @@ function Enable-OSLock {
     Set-ChildLogoutShortcut
     New-ChildGameRequestShortcut
     New-ParentModeShortcut
+    New-BrowserLauncher
+    New-BrowserRequestShortcut
+    New-GrantBrowserTimeShortcut
+    Apply-EdgePolicies
+
+    # Program Guardian: scan and harden any newly installed programs immediately
+    Scan-And-Harden-ChildPrograms
 
     Write-Log -Message "OS Child Lockdown deployed." -Type "SUCCESS" -Color Green
 
@@ -847,6 +1838,15 @@ function Enable-OSLock {
 
 function Disable-OSLock {
     Write-Log -Message "Initiating OS Child Lockdown removal..." -Type "ACTION" -Color Magenta
+
+    if (-not $SilentLock) {
+        $IntegrityCheck = Test-IntegrityStatus
+        if ($IntegrityCheck -eq $false) {
+            Write-Log -Message "Action blocked: script integrity failure before Disable-OSLock." -Type "SECURITY" -Color Red
+            Write-Host "[BLOCKED] Tamper detected. Use uninstall and reinstall." -ForegroundColor Red -BackgroundColor Black
+            return
+        }
+    }
 
     # 1. Remove machine-wide policies
     Remove-MachinePolicies
@@ -1738,7 +2738,10 @@ function Install-Persistence {
         Write-Log -Message "Child account not yet created - child logon task will be created on next silent heal." -Type "WARN" -Color Yellow
     }
 
-    # 4.3 WMI Event Subscription: Third hidden persistence layer
+    # 4.3 Program Guardian: scans and hardens newly installed programs every 10 minutes
+    Install-ProgramGuardian
+
+    # 4.4 WMI Event Subscription: Third hidden persistence layer
     Write-Log -Message "Registering WMI event subscription for persistence..." -Type "INFO" -Color Gray
     try {
         $WmiQuery = "SELECT * FROM __InstanceModificationEvent WITHIN 600 WHERE TargetInstance ISA 'Win32_Service' AND TargetInstance.Name = 'Schedule'"
@@ -1762,15 +2765,30 @@ function Install-Persistence {
     Set-ChildLogoutShortcut
     New-ChildGameRequestShortcut
     New-ParentModeShortcut
+    New-BrowserLauncher
+    New-BrowserRequestShortcut
+    New-GrantBrowserTimeShortcut
+    Apply-EdgePolicies
+
+    # 6.1 Initialize ScreenTime config and watcher if not already present
+    if (-not (Test-Path $ScreenTimeConfigFile)) {
+        Set-ScreenTimeConfig -DailyStart "08:00" -DailyEnd "20:00" -DailyMaxMinutes 120 -BrowserMaxMinutes 60 -WeekendDailyMaxMinutes 180 -WeekendBrowserMaxMinutes 90 -Enabled $true
+    }
+    Install-ScreenTimeWatcher
 
     # 7. Set default Parent Mode password and create requests directory
     Write-Log -Message "Setting default Parent Mode password and creating requests directory..." -Type "INFO" -Color Yellow
     $DefaultPw = "admin123"
-    $Hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($DefaultPw))
+    $Salt = [byte[]]::new(16)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($Salt)
+    $SaltStr = [Convert]::ToBase64String($Salt)
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($SaltStr + $DefaultPw)
+    $Hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($Bytes)
     $HashStr = ([System.BitConverter]::ToString($Hash) -replace "-", "").ToLower()
     try {
         if (-not (Test-Path $IntegrityRegPath)) { New-Item -Path $IntegrityRegPath -Force | Out-Null }
         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentPasswordHash" -Value $HashStr -Type String -Force -ErrorAction Stop
+        Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentPasswordSalt" -Value $SaltStr -Type String -Force -ErrorAction Stop
         Write-Log -Message "Default Parent Mode password set (change it with 'oslock -SetParentPassword')." -Type "INFO" -Color Gray
     } catch {
         Write-Log -Message "Failed to set default Parent Mode password: $_" -Type "WARN" -Color Yellow
@@ -1785,7 +2803,14 @@ function Install-Persistence {
         $RequestsDirAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidSystem, "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")))
         $RequestsDirAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidAdmin, "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow")))
         $RequestsDirAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidAdmin, "DeleteSubdirectoriesAndFiles", "ContainerInherit,ObjectInherit", "None", "Deny")))
-        $RequestsDirAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidUsers, "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow")))
+        # Child user: WriteData only (can create request files, cannot read/list/delete)
+        $ChildSidValue = Get-ChildSid
+        if ($ChildSidValue) {
+            $ChildSidObj = New-Object System.Security.Principal.SecurityIdentifier($ChildSidValue)
+            $RequestsDirAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($ChildSidObj, "WriteData, AppendData", "ContainerInherit,ObjectInherit", "None", "Allow")))
+            $RequestsDirAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($ChildSidObj, "Delete", "ContainerInherit,ObjectInherit", "None", "Deny")))
+            $RequestsDirAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($ChildSidObj, "DeleteSubdirectoriesAndFiles", "ContainerInherit,ObjectInherit", "None", "Deny")))
+        }
         Set-Acl -Path $RequestDir -AclObject $RequestsDirAcl -ErrorAction Stop
     } catch {
         Write-Log -Message "Failed to harden Requests directory ACL: $_" -Type "WARN" -Color Yellow
@@ -1794,32 +2819,19 @@ function Install-Persistence {
     # 8. Register Parent Mode AFK Watcher (1-minute dead man's switch)
     Write-Log -Message "Registering Parent Mode AFK watcher (1-minute heartbeat) ..." -Type "INFO" -Color Yellow
     $WatchScriptPath = Join-Path $InstallDir "ParentModeWatch.ps1"
-    $WatchScriptContent = '
-$RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WpnPlatform\Settings"
-$Active = (Get-ItemProperty -Path $RegPath -Name "OSGuardParentModeActive" -ErrorAction SilentlyContinue).OSGuardParentModeActive
-if ($Active -ne 1) { return }
-
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class IdleTime {
-    [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
-    [StructLayout(LayoutKind.Sequential)] struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
-    public static uint GetIdleTime() {
-        LASTINPUTINFO lii = new LASTINPUTINFO(); lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
-        GetLastInputInfo(ref lii);
-        return (uint)Environment.TickCount - lii.dwTime;
+    try {
+        $WatchScriptContent = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($ParentModeWatchB64))
+        Set-Content -Path $WatchScriptPath -Value $WatchScriptContent -Encoding UTF8 -Force
+        $WatchAcl = Get-Acl -Path $WatchScriptPath
+        $WatchAcl.SetOwner($SidSystem)
+        $WatchAcl.SetAccessRuleProtection($true, $false)
+        $WatchAcl.Access | ForEach-Object { $WatchAcl.RemoveAccessRule($_) | Out-Null }
+        $WatchAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidSystem, "FullControl", "None", "None", "Allow")))
+        $WatchAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidAdmin, "ReadAndExecute", "None", "None", "Allow")))
+        Set-Acl -Path $WatchScriptPath -AclObject $WatchAcl -ErrorAction SilentlyContinue
+    } catch {
+        Write-Log -Message "Failed to write ParentModeWatch script: $_" -Type "WARN" -Color Yellow
     }
-}
-"@
-
-$IdleMs = [IdleTime]::GetIdleTime()
-$Timeout = 5 * 60 * 1000
-if ($IdleMs -gt $Timeout) {
-    & "C:\Windows\oslock.cmd" -LockNow
-}
-'
-    Set-Content -Path $WatchScriptPath -Value $WatchScriptContent -Encoding UTF8 -Force
     $WatchAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$WatchScriptPath`""
     $WatchTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 9999)
     $WatchPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
@@ -1919,15 +2931,28 @@ function Uninstall-Persistence {
 
     Write-Log -Message "Uninstalling OS-Guard from System..." -Type "ACTION" -Color Yellow
 
+    # Stop any running Window Guard process
+    Stop-WindowGuard
+
     # Unlock everything FIRST (DNS + OS)
     Disable-DNSLock
     Disable-OSLock
     Remove-ChildLogoutShortcut
     Remove-ChildGameRequestShortcut
     Remove-ParentModeShortcut
+    Remove-ParentModeAdminTools
+    Remove-BrowserRequestShortcut
+    Remove-GrantBrowserTimeShortcut
+    Remove-EdgePolicies
+    Remove-ScreenTimeWatcher
 
-    # Remove the Scheduled Tasks (including guardians, child logon, and parent mode watch)
-    foreach ($TName in @($TaskName, $Guardian1Name, $Guardian2Name, $ChildLogonTaskName, $ParentModeWatchName)) {
+    # Remove ScreenTime files
+    foreach ($STFile in @($ScreenTimeConfigFile, $ScreenTimeTrackerFile, $BrowserLauncherPath)) {
+        if (Test-Path $STFile) { Remove-Item -Path $STFile -Force -ErrorAction SilentlyContinue }
+    }
+
+    # Remove the Scheduled Tasks (including guardians, child logon, parent mode watch, program scanner, and screen time)
+    foreach ($TName in @($TaskName, $Guardian1Name, $Guardian2Name, $ChildLogonTaskName, $ParentModeWatchName, $ProgramScannerName, $ScreenTimeTaskName)) {
         if (Get-ScheduledTask -TaskName $TName -ErrorAction SilentlyContinue) {
             Unregister-ScheduledTask -TaskName $TName -Confirm:$false | Out-Null
             Write-Log -Message "Removed task: $TName" -Type "INFO" -Color Gray
@@ -1947,6 +2972,7 @@ function Uninstall-Persistence {
     if (Test-Path $IntegrityRegPath) {
         Remove-ItemProperty -Path $IntegrityRegPath -Name "OSGuardIntegrity" -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentPasswordHash" -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentPasswordSalt" -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentModeActive" -ErrorAction SilentlyContinue
         Remove-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentModeTimestamp" -ErrorAction SilentlyContinue
     }
@@ -2015,7 +3041,8 @@ function Uninstall-Persistence {
     if (Get-ScheduledTask -TaskName $Guardian1Name -ErrorAction SilentlyContinue) { $FailedCount++; Write-Log -Message "Task $Guardian1Name still exists." -Type "ERROR" -Color Red }
     if (Get-ScheduledTask -TaskName $Guardian2Name -ErrorAction SilentlyContinue) { $FailedCount++; Write-Log -Message "Task $Guardian2Name still exists." -Type "ERROR" -Color Red }
     if (Get-ScheduledTask -TaskName $ChildLogonTaskName -ErrorAction SilentlyContinue) { $FailedCount++; Write-Log -Message "Task $ChildLogonTaskName still exists." -Type "ERROR" -Color Red }
-    if (Get-ScheduledTask -TaskName $ParentModeWatchName -ErrorAction SilentlyContinue) { $FailedCount++; Write-Log -Message "Task $ParentModeWatchName still exists." -Type "ERROR" -Color Red }
+    if (Get-ScheduledTask -TaskName $ProgramScannerName -ErrorAction SilentlyContinue) { $FailedCount++; Write-Log -Message "Task $ProgramScannerName still exists." -Type "ERROR" -Color Red }
+    if (Get-ScheduledTask -TaskName $ScreenTimeTaskName -ErrorAction SilentlyContinue) { $FailedCount++; Write-Log -Message "Task $ScreenTimeTaskName still exists." -Type "ERROR" -Color Red }
     if (Test-Path $InstallDir) { $FailedCount++; Write-Log -Message "Install directory $InstallDir still exists." -Type "ERROR" -Color Red }
     if (Test-Path $CmdPath) { $FailedCount++; Write-Log -Message "Global CLI $CmdPath still exists." -Type "ERROR" -Color Red }
     $CurrentPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
@@ -2108,15 +3135,81 @@ if ($SilentLock) {
         } catch {}
     }
 
-    # Re-apply the parent mode watch task if missing
+    # Re-write ParentModeWatch script from embedded Base64 (fresh every heal) and re-register task if missing
+    $WatchScriptPath = Join-Path $InstallDir "ParentModeWatch.ps1"
+    try {
+        $WatchScriptContent = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($ParentModeWatchB64))
+        Set-Content -Path $WatchScriptPath -Value $WatchScriptContent -Encoding UTF8 -Force
+        $WatchAcl = Get-Acl -Path $WatchScriptPath
+        $WatchAcl.SetOwner($SidSystem)
+        $WatchAcl.SetAccessRuleProtection($true, $false)
+        $WatchAcl.Access | ForEach-Object { $WatchAcl.RemoveAccessRule($_) | Out-Null }
+        $WatchAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidSystem, "FullControl", "None", "None", "Allow")))
+        $WatchAcl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($SidAdmin, "ReadAndExecute", "None", "None", "Allow")))
+        Set-Acl -Path $WatchScriptPath -AclObject $WatchAcl -ErrorAction SilentlyContinue
+    } catch {
+        Write-Log -Message "Failed to write ParentModeWatch script during silent heal: $_" -Type "WARN" -Color Yellow
+    }
     if (-not (Get-ScheduledTask -TaskName $ParentModeWatchName -ErrorAction SilentlyContinue)) {
         try {
-            $WatchScriptPath = Join-Path $InstallDir "ParentModeWatch.ps1"
             $WatchAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$WatchScriptPath`""
             $WatchTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 9999)
             $WatchPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
             Register-ScheduledTask -TaskName $ParentModeWatchName -Action $WatchAction -Trigger $WatchTrigger -Principal $WatchPrincipal -Force | Out-Null
         } catch {}
+    }
+
+    # Re-apply Program Guardian task if missing
+    if (-not (Get-ScheduledTask -TaskName $ProgramScannerName -ErrorAction SilentlyContinue)) {
+        try {
+            Install-ProgramGuardian
+        } catch {
+            Write-Log -Message "Failed to re-register Program Guardian task during silent heal: $_" -Type "WARN" -Color Yellow
+        }
+    }
+
+    # Re-apply ScreenTime watcher if missing
+    if (-not (Get-ScheduledTask -TaskName $ScreenTimeTaskName -ErrorAction SilentlyContinue)) {
+        try {
+            Install-ScreenTimeWatcher
+        } catch {
+            Write-Log -Message "Failed to re-register ScreenTime watcher during silent heal: $_" -Type "WARN" -Color Yellow
+        }
+    }
+
+    # Enforce ScreenTime limits immediately during silent heal
+    Invoke-ScreenTimeEnforcement
+
+    # Program Guardian: scan and harden any newly installed programs
+    Scan-And-Harden-ChildPrograms
+
+    # Check WMI subscription health and re-register if missing or corrupted
+    $WmiFilterExists = Get-WmiObject -Class __EventFilter -Namespace "root\subscription" -Filter "Name='$WmiEventName'" -ErrorAction SilentlyContinue
+    $WmiConsumerExists = Get-WmiObject -Class CommandLineEventConsumer -Namespace "root\subscription" -Filter "Name='$WmiEventName'" -ErrorAction SilentlyContinue
+    $WmiBindingExists = Get-WmiObject -Class __FilterToConsumerBinding -Namespace "root\subscription" -Filter "__PATH LIKE '%$WmiEventName%'" -ErrorAction SilentlyContinue
+    if (-not $WmiFilterExists -or -not $WmiConsumerExists -or -not $WmiBindingExists) {
+        Write-Log -Message "WMI subscription missing or corrupted during silent heal. Re-registering..." -Type "SECURITY" -Color Red
+        try {
+            $WmiQuery = "SELECT * FROM __InstanceModificationEvent WITHIN 600 WHERE TargetInstance ISA 'Win32_Service' AND TargetInstance.Name = 'Schedule'"
+            $WmiConsumer = Set-WmiInstance -Class CommandLineEventConsumer -Namespace "root\subscription" -Arguments @{Name=$WmiEventName; CommandLineTemplate="powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$InstallScript`" -SilentLock"; RunInteractively=$false} -ErrorAction Stop
+            $WmiFilter = Set-WmiInstance -Class __EventFilter -Namespace "root\subscription" -Arguments @{Name=$WmiEventName; EventNamespace="root\cimv2"; QueryLanguage="WQL"; Query=$WmiQuery} -ErrorAction Stop
+            Set-WmiInstance -Class __FilterToConsumerBinding -Namespace "root\subscription" -Arguments @{Filter=$WmiFilter; Consumer=$WmiConsumer} -ErrorAction Stop | Out-Null
+            Write-Log -Message "WMI subscription re-registered successfully." -Type "SUCCESS" -Color Green
+        } catch {
+            Write-Log -Message "Failed to re-register WMI subscription during silent heal: $_" -Type "WARN" -Color Yellow
+        }
+    }
+
+    # Check Task Scheduler service and auto-start if stopped
+    $ScheduleService = Get-Service -Name "Schedule" -ErrorAction SilentlyContinue
+    if ($ScheduleService -and $ScheduleService.Status -ne "Running") {
+        Write-Log -Message "Task Scheduler service is stopped! Starting it..." -Type "SECURITY" -Color Red
+        try {
+            Start-Service -Name "Schedule" -ErrorAction Stop
+            Write-Log -Message "Task Scheduler service started." -Type "SUCCESS" -Color Green
+        } catch {
+            Write-Log -Message "Failed to start Task Scheduler service: $_" -Type "ERROR" -Color Red
+        }
     }
 
     # Ensure parent mode flag is cleared (defense: never leave unlocked after a silent heal)
@@ -2144,6 +3237,11 @@ if ($ContinueParentMode) {
     }
     return
 }
+if ($ProgramScan) { Scan-And-Harden-ChildPrograms; return }
+if ($SetScreenTime) { Show-SetScreenTimeDialog; return }
+if ($ScreenTimeStatus) { Show-ScreenTimeStatus; return }
+if ($GrantBrowserTime) { Show-GrantBrowserTimeDialog; return }
+if ($ScreenTimeEnforce) { Invoke-ScreenTimeEnforcement; return }
 if ($LockNow)    { Exit-ParentMode; return }
 if ($Uninstall) {
     $CurrentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
