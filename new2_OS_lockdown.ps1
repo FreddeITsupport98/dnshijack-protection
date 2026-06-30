@@ -2508,6 +2508,7 @@ function Enable-OSLock {
 }
 
 function Disable-OSLock {
+    param([switch]$KeepChildAccount)
     Write-Log -Message "Initiating OS Child Lockdown removal..." -Type "ACTION" -Color Magenta
 
     if (-not $SilentLock) {
@@ -2534,41 +2535,46 @@ function Disable-OSLock {
         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentModeTimestamp" -Value "" -Type String -Force -ErrorAction SilentlyContinue
     } catch {}
 
-    # 2. Remove per-user policies from the child's live and offline hives
-    $ChildSidValue = Get-ChildSid
-    $LiveHive = $null
-    if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue")) {
-        $LiveHive = $ChildSidValue
-    }
-    $OfflineHive = $null
-    if (-not $LiveHive) {
-        $OfflineHive = Mount-ChildHive
-    }
-    if ($LiveHive) {
-        Remove-ChildHivePolicies -HiveMount $LiveHive
-        Write-Log -Message "Child hive policies removed from '$ChildUser' (live session)." -Type "SUCCESS" -Color Green
-    }
-    if ($OfflineHive) {
-        Remove-ChildHivePolicies -HiveMount $OfflineHive
-        Write-Log -Message "Child hive policies removed from '$ChildUser' (offline)." -Type "SUCCESS" -Color Green
-        Dismount-ChildHive -HiveMount $OfflineHive
-    }
-    if (-not $LiveHive -and -not $OfflineHive) {
-        Write-Log -Message "Child hive not available for cleanup - policies will clear at next logon if ChildLogon task removed." -Type "WARN" -Color Yellow
+    if (-not $KeepChildAccount) {
+        # 2. Remove per-user policies from the child's live and offline hives
+        $ChildSidValue = Get-ChildSid
+        $LiveHive = $null
+        if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue")) {
+            $LiveHive = $ChildSidValue
+        }
+        $OfflineHive = $null
+        if (-not $LiveHive) {
+            $OfflineHive = Mount-ChildHive
+        }
+        if ($LiveHive) {
+            Remove-ChildHivePolicies -HiveMount $LiveHive
+            Write-Log -Message "Child hive policies removed from '$ChildUser' (live session)." -Type "SUCCESS" -Color Green
+        }
+        if ($OfflineHive) {
+            Remove-ChildHivePolicies -HiveMount $OfflineHive
+            Write-Log -Message "Child hive policies removed from '$ChildUser' (offline)." -Type "SUCCESS" -Color Green
+            Dismount-ChildHive -HiveMount $OfflineHive
+        }
+        if (-not $LiveHive -and -not $OfflineHive) {
+            Write-Log -Message "Child hive not available for cleanup - policies will clear at next logon if ChildLogon task removed." -Type "WARN" -Color Yellow
+        }
+
+        # 3. Re-enable password change capability
+        net user $ChildUser /passwordchg:yes 2>&1 | Out-Null
+
+        Remove-ChildLogoutShortcut
+        Remove-ChildGameRequestShortcut
+        Remove-BrowserRequestShortcut
+        Remove-EdgePolicies
+        Remove-ScreenTimeWatcher
+        Remove-ChildInstallDirectoryHardening
+    } else {
+        Write-Log -Message "KeepChildAccount specified: child account policies, shortcuts, screen time, and install directory hardening are preserved." -Type "INFO" -Color Gray
     }
 
-    # 3. Re-enable password change capability
-    net user $ChildUser /passwordchg:yes 2>&1 | Out-Null
-
-    Remove-ChildLogoutShortcut
-    Remove-ChildGameRequestShortcut
     Remove-ParentModeShortcut
     Remove-ParentModeAdminTools
-    Remove-BrowserRequestShortcut
     Remove-GrantBrowserTimeShortcut
-    Remove-EdgePolicies
-    Remove-ScreenTimeWatcher
-    Remove-ChildInstallDirectoryHardening
 
     Write-Log -Message "OS Child Lockdown removed." -Type "SUCCESS" -Color Green
 }
@@ -4540,7 +4546,7 @@ do {
                 Write-Host "Use option [4] to uninstall, then reinstall from a clean source." -ForegroundColor Yellow
             } else {
                 Disable-DNSLock
-                Disable-OSLock
+                Disable-OSLock -KeepChildAccount
             }
             Write-Host "`n[ PRESS ANY KEY TO RETURN TO MENU ]" -ForegroundColor DarkGray; $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         }
