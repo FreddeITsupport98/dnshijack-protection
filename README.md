@@ -657,6 +657,8 @@ This section tracks upcoming and recently merged changes before they are tagged 
 - **Wi-Fi SSID Geofencing** (2026-06-29): Added `-HomeSSID` parameter. When not on the home network, stricter lockdown (browser/game kill + firewall blocks) auto-enforces.
 - **First Run Wizard** (2026-06-29): Added `Show-SetupWizard` WinForms dialog for one-click initial setup (child name, screen time limits, auto-deploy).
 - **README Rewrite** (2026-06-29): Added Mermaid architecture diagram, Quick Start for 3 personas (Parent, School IT, MSP), and FAQ section.
+- **Strict Mode Registry Fix** (2026-06-30): Fixed `PropertyNotFoundException` errors caused by `Set-StrictMode -Version Latest` combined with dot-notation access on missing registry properties. Replaced all unsafe `(Get-ItemProperty ...).Prop` patterns with `Get-ItemProperty ... | Select-Object -ExpandProperty ... -ErrorAction SilentlyContinue`, which returns `$null` silently instead of throwing.
+- **Category Grid [UNKNOWN] Fix** (2026-06-30): Fixed `Show-CategoryGrid` rendering `[UNKNOWN]` for all child-hive categories when the child has never logged in. Changed fallback values from `$null` to `$false` in the `else` block so they display as `[DISABLED]`. Added `$HiveLoaded` flag to track manual `reg.exe load` operations so `reg.exe unload` only runs when the script actually loaded the hive. Changed the Child Account check from inline `Get-LocalUser` to `Get-ChildAccount` for consistency.
 
 ---
 
