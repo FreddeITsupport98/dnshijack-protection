@@ -141,11 +141,13 @@ $ScreenTimeTaskName = "OSGuard-ScreenTime"
 $ScreenTimeConfigFile = Join-Path $InstallDir "ScreenTime.json"
 $ScreenTimeTrackerFile = Join-Path $InstallDir "ScreenTimeTracker.json"
 $BrowserLauncherPath = Join-Path $InstallDir "BrowserLauncher.ps1"
+$TempUnlockTimerPath = Join-Path $InstallDir "TempUnlockTimer.ps1"
+$TempUnlockTimerPidFile = Join-Path $InstallDir "TempUnlockTimer.pid"
 $IntegrityRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WpnPlatform\Settings"
 $TamperDetectedRegName = "OSGuardTamperDetected"
 
 # Parent Mode AFK Watch script embedded as Base64 (written fresh at install and every silent heal)
-$ParentModeWatchB64 = "JFJlZ1BhdGggPSBIS0xNOlxTT0ZUV0FSRVxNaWNyb3NvZnRcV2luZG93c1xDdXJyZW50VmVyc2lvblxXcG5QbGF0Zm9ybVxTZXR0aW5ncwp0cnkgeyAkUGFyZW50QWN0aXZlID0gKEdldC1JdGVtUHJvcGVydHlWYWx1ZSAtUGF0aCAkUmVnUGF0aCAtTmFtZSAiT1NHdWFyZFBhcmVudE1vZGVBY3RpdmUiIC1FcnJvckFjdGlvbiBTdG9wKSB9IGNhdGNoIHsgJFBhcmVudEFjdGl2ZSA9ICRudWxsIH0KdHJ5IHsgJFRlbXBBY3RpdmUgPSAoR2V0LUl0ZW1Qcm9wZXJ0eVZhbHVlIC1QYXRoICRSZWdQYXRoIC1OYW1lICJPU0d1YXJkVGVtcFVubG9ja0FjdGl2ZSIgLUVycm9yQWN0aW9uIFN0b3ApIH0gY2F0Y2ggeyAkVGVtcEFjdGl2ZSA9ICRudWxsIH0KaWYgKCRQYXJlbnRBY3RpdmUgLW5lIDEgLWFuZCAkVGVtcEFjdGl2ZSAtbmUgMSkgeyByZXR1cm4gfQoKQWRkLVR5cGUgQCIKdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUnVudGltZS5JbnRlcm9wU2VydmljZXM7CnB1YmxpYyBjbGFzcyBJZGxlVGltZSB7CiAgICBbRGxsSW1wb3J0KCJ1c2VyMzIuZGxsIildIHN0YXRpYyBleHRlcm4gYm9vbCBHZXRMYXN0SW5wdXRJbmZvKHJlZiBMQVNUSU5QVVRJTkZPIHBsaWkpOwogICAgW1N0cnVjdExheW91dChMYXlvdXRLaW5kLlNlcXVlbnRpYWwpXSBzdHJ1Y3QgTEFTVElOUFVUSU5GTyB7IHB1YmxpYyB1aW50IGNiU2l6ZTsgcHVibGljIHVpbnQgZHdUaW1lOyB9CiAgICBwdWJsaWMgc3RhdGljIHVpbnQgR2V0SWRsZVRpbWUoKSB7CiAgICAgICAgTEFTVElOUFVUSU5GTyBsaWkgPSBuZXcgTEFTVElOUFVUSU5GTygpOyBsaWkuY2JTaXplID0gKHVpbnQpTWFyc2hhbC5TaXplT2YodHlwZW9mKExBU1RJTlBVVElORk8pKTsKICAgICAgICBHZXRMYXN0SW5wdXRJbmZvKHJlZiBsaWkpOwogICAgICAgIHJldHVybiAodWludClFbnZpcm9ubWVudC5UaWNrQ291bnQgLSBsaWkuZHdUaW1lOwogICAgfQp9CiJACgokSWRsZU1zID0gW0lkbGVUaW1lXTo6R2V0SWRsZVRpbWUoKQokVGltZW91dCA9IDUgKiA2MCAqIDEwMDAKaWYgKCRJZGxlTXMgLWd0ICRUaW1lb3V0KSB7CiAgICAmICJDOlxXaW5kb3dzXG9zbG9jay5jbWQiIC1Mb2NrTm93Cn0="
+$ParentModeWatchB64 = "JFJlZ1BhdGggPSBIS0xNOlxTT0ZUV0FSRVxNaWNyb3NvZnRcV2luZG93c1xDdXJyZW50VmVyc2lvblxXcG5QbGF0Zm9ybVxTZXR0aW5ncwp0cnkgeyAkUGFyZW50QWN0aXZlID0gKEdldC1JdGVtUHJvcGVydHlWYWx1ZSAtUGF0aCAkUmVnUGF0aCAtTmFtZSAiT1NHdWFyZFBhcmVudE1vZGVBY3RpdmUiIC1FcnJvckFjdGlvbiBTdG9wKSB9IGNhdGNoIHsgJFBhcmVudEFjdGl2ZSA9ICRudWxsIH0KdHJ5IHsgJFRlbXBBY3RpdmUgPSAoR2V0LUl0ZW1Qcm9wZXJ0eVZhbHVlIC1QYXRoICRSZWdQYXRoIC1OYW1lICJPU0d1YXJkVGVtcFVubG9ja0FjdGl2ZSIgLUVycm9yQWN0aW9uIFN0b3ApIH0gY2F0Y2ggeyAkVGVtcEFjdGl2ZSA9ICRudWxsIH0KaWYgKCRQYXJlbnRBY3RpdmUgLW5lIDEgLWFuZCAkVGVtcEFjdGl2ZSAtbmUgMSkgeyByZXR1cm4gfQoKQWRkLVR5cGUgQCIKdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUnVudGltZS5JbnRlcm9wU2VydmljZXM7CnB1YmxpYyBjbGFzcyBJZGxlVGltZSB7CiAgICBbRGxsSW1wb3J0KCJ1c2VyMzIuZGxsIildIHN0YXRpYyBleHRlcm4gYm9vbCBHZXRMYXN0SW5wdXRJbmZvKHJlZiBMQVNUSU5QVVRJTkZPIHBsaWkpOwogICAgW1N0cnVjdExheW91dChMYXlvdXRLaW5kLlNlcXVlbnRpYWwpXSBzdHJ1Y3QgTEFTVElOUFVUSU5GTyB7IHB1YmxpYyB1aW50IGNiU2l6ZTsgcHVibGljIHVpbnQgZHdUaW1lOyB9CiAgICBwdWJsaWMgc3RhdGljIHVpbnQgR2V0SWRsZVRpbWUoKSB7CiAgICAgICAgTEFTVElOUFVUSU5GTyBsaWkgPSBuZXcgTEFTVElOUFVUSU5GTygpOyBsaWkuY2JTaXplID0gKHVpbnQpTWFyc2hhbC5TaXplT2YodHlwZW9mKExBU1RJTlBVVElORk8pKTsKICAgICAgICBHZXRMYXN0SW5wdXRJbmZvKHJlZiBsaWkpOwogICAgICAgIHJldHVybiAodWludClFbnZpcm9ubWVudC5UaWNrQ291bnQgLSBsaWkuZHdUaW1lOwogICAgfQp9CiJACgokSWRsZU1zID0gW0lkbGVUaW1lXTo6R2V0SWRsZVRpbWUoKQokVGltZW91dCA9IDEgKiA2MCAqIDEwMDAKaWYgKCRJZGxlTXMgLWd0ICRUaW1lb3V0KSB7CiAgICAmICJDOlxXaW5kb3dzXG9zbG9jay5jbWQiIC1Mb2NrTm93Cn0="
 
 # Setup Auto-Logging
 $ScriptDir = Split-Path -Parent -Path $PSCommandPath
@@ -1509,6 +1511,7 @@ function Exit-ParentMode {
     #>
     Write-Log -Message "Exiting Parent Mode and re-locking system..." -Type "ACTION" -Color Magenta
     Stop-WindowGuard
+    Stop-TempUnlockTimer
     Remove-ParentModeAdminTools
     Enable-OSLock
     Enable-DNSLock
@@ -2437,6 +2440,8 @@ function Enable-OSLock {
         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardTempUnlockActive" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardTempUnlockTimestamp" -Value "" -Type String -Force -ErrorAction SilentlyContinue
     } catch {}
+
+    Stop-TempUnlockTimer
 
     # 1. Ensure child account exists and is a standard user (passwordless)
     New-ChildAccount | Out-Null
@@ -3966,7 +3971,10 @@ function Install-Persistence {
     $WatchTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 9999)
     $WatchPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
     Register-ScheduledTask -TaskName $ParentModeWatchName -Action $WatchAction -Trigger $WatchTrigger -Principal $WatchPrincipal -Force | Out-Null
-    Write-Log -Message "Parent Mode AFK watcher registered (1-minute heartbeat, 5-minute idle timeout)." -Type "INFO" -Color Gray
+    Write-Log -Message "Parent Mode AFK watcher registered (1-minute heartbeat, 1-minute idle timeout)." -Type "INFO" -Color Gray
+
+    # 8.1 Create Temp Unlock Timer script
+    New-TempUnlockTimerScript
 
     # --- NTFS PAYLOAD SELF-DEFENSE (runs after all files are written) ---
     Write-Log -Message "Hardening NTFS Permissions on installation directory and files..." -Type "INFO" -Color Yellow
@@ -4117,6 +4125,7 @@ function Uninstall-Persistence {
 
     # Stop any running Window Guard process
     Stop-WindowGuard
+    Stop-TempUnlockTimer
 
     # Unlock everything FIRST (DNS + OS)
     Disable-DNSLock
@@ -4480,6 +4489,110 @@ if ($SilentLock) {
     return
 }
 
+function New-TempUnlockTimerScript {
+    $TimerContent = @'
+# TempUnlockTimer.ps1 - Live countdown for OS-Guard Temporary Unlock
+$RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WpnPlatform\Settings"
+$InstallDir = "C:\ProgramData\OSGuard"
+$PidFile = Join-Path $InstallDir "TempUnlockTimer.pid"
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "OS-Guard Temp Unlock Timer"
+$form.Size = New-Object System.Drawing.Size(420, 160)
+$form.StartPosition = "CenterScreen"
+$form.TopMost = $true
+$form.FormBorderStyle = "FixedDialog"
+$form.MaximizeBox = $false
+$form.MinimizeBox = $false
+
+$label = New-Object System.Windows.Forms.Label
+$label.Font = New-Object System.Drawing.Font("Segoe UI", 18, [System.Drawing.FontStyle]::Bold)
+$label.TextAlign = "MiddleCenter"
+$label.Dock = "Fill"
+$form.Controls.Add($label)
+
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 1000
+
+$timer.Add_Tick({
+    $TempActive = 0
+    try { $TempActive = Get-ItemPropertyValue -Path $RegPath -Name "OSGuardTempUnlockActive" -ErrorAction Stop } catch { $TempActive = 0 }
+    if ($TempActive -ne 1) {
+        $timer.Stop()
+        $form.Close()
+        return
+    }
+    $TimestampStr = $null
+    try { $TimestampStr = Get-ItemPropertyValue -Path $RegPath -Name "OSGuardTempUnlockTimestamp" -ErrorAction Stop } catch { $TimestampStr = $null }
+    $Elapsed = [timespan]::Zero
+    if ($TimestampStr) {
+        try { $Elapsed = (Get-Date) - [datetime]::Parse($TimestampStr) } catch { $Elapsed = [timespan]::Zero }
+    }
+    $Remaining = [timespan]::FromMinutes(1) - $Elapsed
+    if ($Remaining.TotalSeconds -le 0) {
+        $label.Text = "LOCKING NOW..."
+        $timer.Stop()
+        Start-Sleep -Milliseconds 500
+        & "C:\Windows\oslock.cmd" -LockNow
+        $form.Close()
+    } else {
+        $label.Text = ("Temp Unlock: {0:mm\:ss}" -f $Remaining)
+    }
+})
+
+$form.Add_FormClosing({
+    $timer.Stop()
+    $TempActive = 0
+    try { $TempActive = Get-ItemPropertyValue -Path $RegPath -Name "OSGuardTempUnlockActive" -ErrorAction Stop } catch { $TempActive = 0 }
+    if ($TempActive -eq 1) {
+        & "C:\Windows\oslock.cmd" -LockNow
+    }
+    if (Test-Path $PidFile) { Remove-Item -Path $PidFile -Force -ErrorAction SilentlyContinue }
+})
+
+$form.Add_Shown({
+    $PID | Out-File -FilePath $PidFile -Encoding UTF8 -Force
+    $timer.Start()
+})
+
+[void][System.Windows.Forms.Application]::EnableVisualStyles()
+[void]$form.ShowDialog()
+'@
+    Set-Content -Path $TempUnlockTimerPath -Value $TimerContent -Encoding UTF8 -Force
+}
+
+function Start-TempUnlockTimer {
+    if (-not (Test-Path $TempUnlockTimerPath)) {
+        New-TempUnlockTimerScript
+    }
+    Stop-TempUnlockTimer
+    try {
+        $Process = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$TempUnlockTimerPath`"" -WindowStyle Normal -PassThru
+        $Process.Id | Out-File -FilePath $TempUnlockTimerPidFile -Encoding UTF8 -Force
+    } catch {
+        Write-Log -Message "Failed to start temp unlock timer: $_" -Type "WARN" -Color Yellow
+    }
+}
+
+function Stop-TempUnlockTimer {
+    if (Test-Path $TempUnlockTimerPidFile) {
+        try {
+            $PidValue = Get-Content -Path $TempUnlockTimerPidFile -Raw -ErrorAction Stop
+            $TimerPid = [int]$PidValue
+            if ($TimerPid -gt 0) {
+                Stop-Process -Id $TimerPid -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        Remove-Item -Path $TempUnlockTimerPidFile -Force -ErrorAction SilentlyContinue
+    }
+    try {
+        Get-Process -Name "powershell" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq "OS-Guard Temp Unlock Timer" } | Stop-Process -Force -ErrorAction SilentlyContinue
+    } catch {}
+}
+
 if ($Lock)       { Enable-DNSLock; Enable-OSLock; return }
 if ($Unlock)     { Disable-DNSLock; Disable-OSLock; return }
 if ($Install)    { Install-Persistence; return }
@@ -4538,6 +4651,18 @@ do {
     try { $TempUnlockActive = Get-ItemProperty -Path $IntegrityRegPath -Name "OSGuardTempUnlockActive" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "OSGuardTempUnlockActive" -ErrorAction SilentlyContinue -eq 1 } catch {}
 
     Write-Host "`n-----------------------------------------------------"
+    if ($TempUnlockActive) {
+        $TempUnlockTimestamp = $null
+        try { $TempUnlockTimestamp = Get-ItemProperty -Path $IntegrityRegPath -Name "OSGuardTempUnlockTimestamp" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "OSGuardTempUnlockTimestamp" -ErrorAction SilentlyContinue } catch {}
+        $Elapsed = [timespan]::Zero
+        if ($TempUnlockTimestamp) {
+            try { $Elapsed = (Get-Date) - [datetime]::Parse($TempUnlockTimestamp) } catch {}
+        }
+        $Remaining = [timespan]::FromMinutes(1) - $Elapsed
+        if ($Remaining.TotalSeconds -lt 0) { $Remaining = [timespan]::Zero }
+        $CountdownStr = "{0:mm\:ss}" -f $Remaining
+        Write-Host ">>> TEMP UNLOCK ACTIVE - Countdown: $CountdownStr remaining (auto-locks after 1 min idle) <<<" -ForegroundColor Yellow -BackgroundColor Black
+    }
     Write-Host "[1] DEPLOY ALL LOCKS (DNS + OS Child Lockdown)" -ForegroundColor Cyan
     if ($TempUnlockActive) {
         Write-Host "[2] RE-LOCK SYSTEM (End Temporary Unlock)" -ForegroundColor Cyan
@@ -4587,15 +4712,17 @@ do {
                         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardTempUnlockActive" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
                         Set-ItemProperty -Path $IntegrityRegPath -Name "OSGuardTempUnlockTimestamp" -Value "" -Type String -Force -ErrorAction SilentlyContinue
                     } catch {}
+                    Stop-TempUnlockTimer
                     Enable-DNSLock
                     Enable-OSLock
                     Write-Host "`n[LOCKED] System re-locked. Temporary unlock ended." -ForegroundColor Green
                 } else {
                     Disable-DNSLock
                     Disable-OSLock -KeepChildAccount -SetTempUnlockFlag
+                    Start-TempUnlockTimer
                     Write-Host "`n[UNLOCKED] Temporary admin unlock active. Guardians suppressed." -ForegroundColor Yellow
                     Write-Host "  Press [2] again to re-lock, or use [8] LOCK NOW." -ForegroundColor Yellow
-                    Write-Host "  Auto-locks after 5 minutes of inactivity." -ForegroundColor Yellow
+                    Write-Host "  Auto-locks after 1 minute of inactivity." -ForegroundColor Yellow
                 }
             }
             Write-Host "`n[ PRESS ANY KEY TO RETURN TO MENU ]" -ForegroundColor DarkGray; $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
