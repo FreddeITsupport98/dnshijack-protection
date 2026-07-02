@@ -4605,6 +4605,15 @@ function Uninstall-Persistence {
         Remove-ItemProperty -Path $IntegrityRegPath -Name $TamperDetectedRegName -ErrorAction SilentlyContinue
     }
 
+    # Force Group Policy refresh to restore original domain/local GPO settings
+    Write-Log -Message "Forcing Group Policy update (gpupdate /force) to restore original policies..." -Type "INFO" -Color Yellow
+    try {
+        $gpOutput = gpupdate /force 2>&1
+        Write-Log -Message "Group Policy update completed successfully." -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to execute gpupdate /force: $_" -Type "WARN" -Color Yellow
+    }
+
     # Remove Global CLI Command (relax ACL first) - then delete via SYSTEM helper if needed
     if (Test-Path $CmdPath) {
         try {
