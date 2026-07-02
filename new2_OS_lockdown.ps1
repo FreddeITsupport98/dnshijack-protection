@@ -4447,6 +4447,15 @@ function Install-Persistence {
 
     Write-Log -Message "INSTALLATION COMPLETE! System is permanently protected." -Type "SUCCESS" -Color Green
 
+    # Force Group Policy refresh so any domain/local GPO changes take effect immediately
+    Write-Log -Message "Forcing Group Policy update (gpupdate /force) after installation..." -Type "INFO" -Color Yellow
+    try {
+        $gpOutput = gpupdate /force 2>&1
+        Write-Log -Message "Group Policy update completed successfully." -Type "INFO" -Color Gray
+    } catch {
+        Write-Log -Message "Failed to execute gpupdate /force: $_" -Type "WARN" -Color Yellow
+    }
+
     # Final status verification
     $FailedCount = 0
     if (-not (Test-Path $InstallDir)) { $FailedCount++; Write-Log -Message "Install directory $InstallDir missing." -Type "ERROR" -Color Red }
