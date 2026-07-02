@@ -535,7 +535,84 @@ $ChildHivePolicies = @(
     @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "143"; Value = "nvidiashield.exe" },
     @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "144"; Value = "amdlink.exe" },
     @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "145"; Value = "intelunison.exe" },
-    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "146"; Value = "linktowindows.exe" }
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "146"; Value = "linktowindows.exe" },
+    # IFEO backdoor tools (child-only via DisallowRun instead of machine-wide IFEO)
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "147"; Value = "sethc.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "148"; Value = "utilman.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "149"; Value = "osk.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "150"; Value = "magnify.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "151"; Value = "narrator.exe" },
+    @{ SubPath = "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"; Name = "152"; Value = "DisplaySwitch.exe" },
+    # GameDVR / Game Bar block (child-only HKCU)
+    @{ SubPath = "Software\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVR"; Value = 0 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\GameDVR"; Name = "AllowOpenGameBar"; Value = 0 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVRRecording"; Value = 0 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVRCapture"; Value = 0 },
+    # Cortana / Web Search block (child-only HKCU)
+    @{ SubPath = "Software\Policies\Microsoft\Windows\Windows Search"; Name = "AllowCortana"; Value = 0 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\Windows Search"; Name = "DisableWebSearch"; Value = 1 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchUseWeb"; Value = 0 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchUseWebOverMeteredConnections"; Value = 0 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchSafeSearch"; Value = 1 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchPrivacy"; Value = 1 },
+    # AppInstaller / winget block (child-only HKCU)
+    @{ SubPath = "Software\Policies\Microsoft\Windows\AppInstaller"; Name = "EnableAppInstaller"; Value = 0 },
+    @{ SubPath = "Software\Policies\Microsoft\Windows\AppInstaller"; Name = "EnableWindowsPackageManager"; Value = 0 },
+    # Edge bypass policies (child-only HKCU)
+    @{ SubPath = "Software\Policies\Microsoft\Edge"; Name = "DefaultPopupsSetting"; Value = 2 },
+    @{ SubPath = "Software\Policies\Microsoft\Edge"; Name = "RendererCodeIntegrityEnabled"; Value = 1 },
+    @{ SubPath = "Software\Policies\Microsoft\Edge"; Name = "BrowserLegacyExtensionPointsBlocked"; Value = 1 },
+    @{ SubPath = "Software\Policies\Microsoft\Edge"; Name = "AllowDeletingBrowserHistory"; Value = 0 },
+    # Edge URL blocklist (child-only HKCU) - cloud gaming, remote shell, IDE bypass URLs
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "1"; Value = "xbox.com/play" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "2"; Value = "play.geforcenow.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "3"; Value = "cloud.boosteroid.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "4"; Value = "luna.amazon.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "5"; Value = "stadia.google.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "6"; Value = "parsec.app" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "7"; Value = "moonlight-stream.org" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "8"; Value = "rainway.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "9"; Value = "shadow.tech" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "10"; Value = "airgpu.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "11"; Value = "maximumsettings.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "12"; Value = "shell.cloud.google.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "13"; Value = "github.com/codespaces" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "14"; Value = "replit.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "15"; Value = "codesandbox.io" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "16"; Value = "codepen.io" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "17"; Value = "jsfiddle.net" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "18"; Value = "stackblitz.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "19"; Value = "gitpod.io" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "20"; Value = "heroku.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "21"; Value = "aws.amazon.com/cloud9" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "22"; Value = "shell.azure.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "23"; Value = "console.cloud.google.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "24"; Value = "ide.goorm.io" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "25"; Value = "glot.io" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "26"; Value = "tio.run" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "27"; Value = "paiza.io" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "28"; Value = "onlinegdb.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "29"; Value = "rextester.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "30"; Value = "ideone.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "31"; Value = "dotnetfiddle.net" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "32"; Value = "plnkr.co" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "33"; Value = "glitch.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "34"; Value = "coder.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "35"; Value = "vscode.dev" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "36"; Value = "github.dev" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "37"; Value = "gitpod.ws" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "38"; Value = "anydesk.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "39"; Value = "teamviewer.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "40"; Value = "remotedesktop.google.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "41"; Value = "rustdesk.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "42"; Value = "nomachine.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "43"; Value = "splashtop.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "44"; Value = "logmein.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "45"; Value = "goto.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "46"; Value = "join.me" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "47"; Value = "discord.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "48"; Value = "discordapp.com" },
+    @{ SubPath = "Software\Policies\Microsoft\Edge\URLBlocklist"; Name = "49"; Value = "web.telegram.org" }
 )
 
 # ============================================================================
@@ -2636,14 +2713,11 @@ function Enable-OSLock {
     net user $ChildUser /passwordchg:no 2>&1 | Out-Null
     net user $ChildUser /passwordreq:no 2>&1 | Out-Null
 
-    Set-ChildLogoutShortcut
-    New-ChildGameRequestShortcut
     # Skip re-creating Parent Mode shortcuts if Parent Mode is currently active
     $ParentModeActive = $false
     try { $ParentModeActive = Get-ItemProperty -Path $IntegrityRegPath -Name "OSGuardParentModeActive" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "OSGuardParentModeActive" -ErrorAction SilentlyContinue -eq 1 } catch {}
     if (-not $ParentModeActive) { New-ParentModeShortcut }
     New-BrowserLauncher
-    New-BrowserRequestShortcut
     New-GrantBrowserTimeShortcut
     Apply-EdgePolicies
 
@@ -2653,7 +2727,8 @@ function Enable-OSLock {
     # Harden per-user install directories so child cannot install even in Parent Mode
     Harden-ChildInstallDirectories
 
-    Apply-BypassMitigations
+    # Child-facing shortcuts and bypass mitigations are deferred to child logon via -ChildLock
+    # so they are only created when the child account is actually entered.
 
     Write-Log -Message "OS Child Lockdown deployed." -Type "SUCCESS" -Color Green
 
@@ -2674,14 +2749,17 @@ function Enable-OSLock {
             if ($IsAdmin) { $FailedCount++; Write-Log -Message "Child '$ChildUser' is still an administrator!" -Type "ERROR" -Color Red }
         } catch {}
     }
-    # Verify logout shortcut
+    # Verify logout shortcut (only if child is currently logged in; otherwise deferred to -ChildLock)
     $ChildProfilePath = $null
     try {
         $ChildProfile = Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue | Where-Object { $_.LocalPath -like "*\$ChildUser" } | Select-Object -First 1
         if ($ChildProfile) { $ChildProfilePath = $ChildProfile.LocalPath }
     } catch {}
     if (-not $ChildProfilePath) { $ChildProfilePath = "C:\Users\$ChildUser" }
-    if (-not (Test-Path (Join-Path $ChildProfilePath "Desktop\Log out.lnk"))) { $FailedCount++; Write-Log -Message "Logout shortcut for '$ChildUser' not found." -Type "ERROR" -Color Red }
+    $ChildSidValue = Get-ChildSid
+    if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue") -and -not (Test-Path (Join-Path $ChildProfilePath "Desktop\Log out.lnk"))) {
+        $FailedCount++; Write-Log -Message "Logout shortcut for '$ChildUser' not found." -Type "ERROR" -Color Red
+    }
     if ($FailedCount -eq 0) {
         if (-not $SilentLock) { Write-Host "[SUCCESS] ALL OS LOCKS DEPLOYED!" -ForegroundColor Green }
     } else {
@@ -2776,28 +2854,60 @@ function Disable-OSLock {
 }
 
 # ============================================================================
-# 6.5 BYPASS MITIGATION MODULE
+# 6.5 BYPASS MITIGATION MODULE (CHILD-SPECIFIC)
 # ============================================================================
 
-$script:BypassUrls = @(
-    "xbox.com/play", "play.geforcenow.com", "cloud.boosteroid.com", "luna.amazon.com", "stadia.google.com",
-    "parsec.app", "moonlight-stream.org", "rainway.com", "shadow.tech", "airgpu.com", "maximumsettings.com",
-    "shell.cloud.google.com", "github.com/codespaces", "replit.com", "codesandbox.io", "codepen.io",
-    "jsfiddle.net", "stackblitz.com", "gitpod.io", "heroku.com", "aws.amazon.com/cloud9",
-    "shell.azure.com", "console.cloud.google.com", "ide.goorm.io", "glot.io", "tio.run", "paiza.io",
-    "onlinegdb.com", "rextester.com", "ideone.com", "dotnetfiddle.net", "plnkr.co", "glitch.com",
-    "coder.com", "vscode.dev", "github.dev", "gitpod.ws", "anydesk.com", "teamviewer.com",
-    "remotedesktop.google.com", "rustdesk.com", "nomachine.com", "splashtop.com", "logmein.com",
-    "goto.com", "join.me", "discord.com", "discordapp.com", "web.telegram.org"
-)
-
-$script:IFEOTools = @("sethc.exe", "utilman.exe", "osk.exe", "magnify.exe", "narrator.exe", "DisplaySwitch.exe")
-
+# File extensions that are remapped to txtfile in the child hive (HKCU\Software\Classes)
 $script:BlockedExtensions = @(
     @{ Ext = ".scr"; Original = "scrfile" },
     @{ Ext = ".com"; Original = "comfile" },
     @{ Ext = ".pif"; Original = "piffile" }
 )
+
+function Apply-ChildFileAssociationBlock {
+    param([string]$HiveMount)
+    if (-not $HiveMount) { return }
+    $HiveRoot = "Registry::HKEY_USERS\$HiveMount"
+    foreach ($item in $script:BlockedExtensions) {
+        $path = "$HiveRoot\Software\Classes\$($item.Ext)"
+        try {
+            if (-not (Test-Path $path)) {
+                New-Item -Path $path -Force -ErrorAction SilentlyContinue | Out-Null
+            }
+            $current = (Get-ItemProperty -Path $path -Name "(Default)" -ErrorAction SilentlyContinue)."(Default)"
+            if ($current -and $current -ne "txtfile") {
+                Set-ItemProperty -Path $path -Name "OSGuardOriginalProgID" -Value $current -Type String -Force -ErrorAction SilentlyContinue
+            }
+            Set-ItemProperty -Path $path -Name "(Default)" -Value "txtfile" -Type String -Force -ErrorAction Stop
+            Write-Log -Message "Blocked $($item.Ext) execution in child hive (assoc -> txtfile)." -Type "INFO" -Color Gray
+        } catch {
+            Write-Log -Message "Failed to block $($item.Ext) in child hive: $_" -Type "WARN" -Color Yellow
+        }
+    }
+    Write-Log -Message "Child file association lockdown applied." -Type "SUCCESS" -Color Green
+}
+
+function Remove-ChildFileAssociationBlock {
+    param([string]$HiveMount)
+    if (-not $HiveMount) { return }
+    $HiveRoot = "Registry::HKEY_USERS\$HiveMount"
+    foreach ($item in $script:BlockedExtensions) {
+        $path = "$HiveRoot\Software\Classes\$($item.Ext)"
+        if (Test-Path $path) {
+            try {
+                $original = (Get-ItemProperty -Path $path -Name "OSGuardOriginalProgID" -ErrorAction SilentlyContinue)."OSGuardOriginalProgID"
+                if ($original) {
+                    Set-ItemProperty -Path $path -Name "(Default)" -Value $original -Type String -Force -ErrorAction SilentlyContinue
+                    Remove-ItemProperty -Path $path -Name "OSGuardOriginalProgID" -Force -ErrorAction SilentlyContinue
+                } else {
+                    Set-ItemProperty -Path $path -Name "(Default)" -Value $item.Original -Type String -Force -ErrorAction SilentlyContinue
+                }
+                Write-Log -Message "Restored $($item.Ext) association in child hive." -Type "INFO" -Color Gray
+            } catch {}
+        }
+    }
+    Write-Log -Message "Child file association lockdown removed." -Type "INFO" -Color Gray
+}
 
 function Apply-FolderExecutionDeny {
     $ChildSidValue = Get-ChildSid
@@ -2866,238 +2976,49 @@ function Remove-FolderExecutionDeny {
     Write-Log -Message "Folder execution deny removed." -Type "INFO" -Color Gray
 }
 
-function Apply-IFEOBackdoorBlock {
-    $IFEOBase = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
-    foreach ($tool in $script:IFEOTools) {
-        $path = Join-Path $IFEOBase $tool
-        try {
-            if (-not (Test-Path $path)) { New-Item -Path $path -Force -ErrorAction Stop | Out-Null }
-            Set-ItemProperty -Path $path -Name "Debugger" -Value "C:\Windows\System32\systray.exe" -Type String -Force -ErrorAction Stop
-            Write-Log -Message "IFEO backdoor block set for $tool" -Type "INFO" -Color Gray
-        } catch {
-            Write-Log -Message "Failed to set IFEO for $tool`: $_" -Type "WARN" -Color Yellow
-        }
-    }
-    Write-Log -Message "IFEO backdoor block applied." -Type "SUCCESS" -Color Green
-}
-
-function Remove-IFEOBackdoorBlock {
-    $IFEOBase = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
-    foreach ($tool in $script:IFEOTools) {
-        $path = Join-Path $IFEOBase $tool
-        if (Test-Path $path) {
-            try { Remove-ItemProperty -Path $path -Name "Debugger" -Force -ErrorAction SilentlyContinue } catch {}
-        }
-    }
-    Write-Log -Message "IFEO backdoor block removed." -Type "INFO" -Color Gray
-}
-
-function Apply-EdgeBypassBlocklist {
-    $EdgeUrlPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\URLBlocklist"
-    if (-not (Test-Path $EdgeUrlPath)) { New-Item -Path $EdgeUrlPath -Force -ErrorAction SilentlyContinue | Out-Null }
-    $ExistingKeys = @()
-    try {
-        $UrlBlockObj = Get-ItemProperty -Path $EdgeUrlPath -ErrorAction SilentlyContinue
-        if ($UrlBlockObj) {
-            $ExistingKeys = $UrlBlockObj | Get-Member -MemberType NoteProperty | Where-Object { $_.Name -match '^\d+$' } | Select-Object -ExpandProperty Name | ForEach-Object { [int]$_ } | Sort-Object -Descending
-        }
-    } catch {}
-    $i = if ($ExistingKeys) { $ExistingKeys[0] + 1 } else { 1 }
-    foreach ($Url in $script:BypassUrls) {
-        try {
-            Set-ItemProperty -Path $EdgeUrlPath -Name "$i" -Value $Url -Type String -Force -ErrorAction Stop
-            $i++
-        } catch {
-            Write-Log -Message "Failed to block URL $Url`: $_" -Type "WARN" -Color Yellow
-        }
-    }
-    Write-Log -Message "Edge bypass URL blocklist applied ($($script:BypassUrls.Count) URLs)." -Type "SUCCESS" -Color Green
-}
-
-function Remove-EdgeBypassBlocklist {
-    $EdgeUrlPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\URLBlocklist"
-    if (Test-Path $EdgeUrlPath) {
-        foreach ($Url in $script:BypassUrls) {
-            $Props = Get-ItemProperty -Path $EdgeUrlPath -ErrorAction SilentlyContinue
-            if ($Props) {
-                $Props | Get-Member -MemberType NoteProperty | Where-Object { $_.Name -match '^\d+$' } | ForEach-Object {
-                    $val = $Props.($_.Name)
-                    if ($val -eq $Url) {
-                        try { Remove-ItemProperty -Path $EdgeUrlPath -Name $_.Name -Force -ErrorAction SilentlyContinue } catch {}
-                    }
-                }
-            }
-        }
-    }
-    Write-Log -Message "Edge bypass URL blocklist removed." -Type "INFO" -Color Gray
-}
-
-function Apply-BypassHKLM {
-    $Policies = @(
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVR"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowOpenGameBar"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVRRecording"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVRCapture"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "AllowCortana"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "DisableWebSearch"; Value = 1 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchUseWeb"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchUseWebOverMeteredConnections"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchSafeSearch"; Value = 1 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchPrivacy"; Value = 1 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppInstaller"; Name = "EnableAppInstaller"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppInstaller"; Name = "EnableWindowsPackageManager"; Value = 0 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "DefaultPopupsSetting"; Value = 2 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "RendererCodeIntegrityEnabled"; Value = 1 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "BrowserLegacyExtensionPointsBlocked"; Value = 1 },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "AllowDeletingBrowserHistory"; Value = 0 },
-        @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Services\LxssManager"; Name = "Start"; Value = 4 }
-    )
-    foreach ($Policy in $Policies) {
-        try {
-            if (-not (Test-Path $Policy.Path)) { New-Item -Path $Policy.Path -Force -ErrorAction SilentlyContinue | Out-Null }
-            Set-ItemProperty -Path $Policy.Path -Name $Policy.Name -Value $Policy.Value -Type DWord -Force -ErrorAction SilentlyContinue
-            Write-Log -Message "HKLM policy $($Policy.Name) = $($Policy.Value)" -Type "INFO" -Color Gray
-        } catch {
-            Write-Log -Message "Failed to set HKLM policy $($Policy.Name): $_" -Type "WARN" -Color Yellow
-        }
-    }
-    try {
-        Stop-Service -Name "LxssManager" -Force -ErrorAction SilentlyContinue
-        Write-Log -Message "WSL service stopped." -Type "INFO" -Color Gray
-    } catch {
-        Write-Log -Message "Could not stop WSL service: $_" -Type "WARN" -Color Yellow
-    }
-    Write-Log -Message "HKLM bypass policies applied." -Type "SUCCESS" -Color Green
-}
-
-function Remove-BypassHKLM {
-    $Removeable = @(
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVR" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowOpenGameBar" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVRRecording" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"; Name = "AllowGameDVRCapture" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "AllowCortana" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "DisableWebSearch" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchUseWeb" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchUseWebOverMeteredConnections" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchSafeSearch" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search"; Name = "ConnectedSearchPrivacy" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppInstaller"; Name = "EnableAppInstaller" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppInstaller"; Name = "EnableWindowsPackageManager" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "DefaultPopupsSetting" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "RendererCodeIntegrityEnabled" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "BrowserLegacyExtensionPointsBlocked" },
-        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"; Name = "AllowDeletingBrowserHistory" }
-    )
-    foreach ($Policy in $Removeable) {
-        if (Test-Path $Policy.Path) {
-            try { Remove-ItemProperty -Path $Policy.Path -Name $Policy.Name -Force -ErrorAction SilentlyContinue } catch {}
-        }
-    }
-    try {
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LxssManager" -Name "Start" -Value 3 -Type DWord -Force -ErrorAction SilentlyContinue
-        Write-Log -Message "WSL service restored to Manual (Start=3)." -Type "INFO" -Color Gray
-    } catch {}
-    Write-Log -Message "HKLM bypass policies removed." -Type "INFO" -Color Gray
-}
-
-function Apply-SafeModeMitigation {
-    try {
-        & bcdedit /set "{current}" bootmenupolicy standard | Out-Null
-        Write-Log -Message "bcdedit: bootmenupolicy set to standard." -Type "INFO" -Color Gray
-    } catch { Write-Log -Message "bcdedit bootmenupolicy failed: $_" -Type "WARN" -Color Yellow }
-    try {
-        & bcdedit /set "{current}" recoveryenabled No | Out-Null
-        Write-Log -Message "bcdedit: recoveryenabled set to No." -Type "INFO" -Color Gray
-    } catch { Write-Log -Message "bcdedit recoveryenabled failed: $_" -Type "WARN" -Color Yellow }
-    try {
-        & reagentc /disable | Out-Null
-        Write-Log -Message "reagentc: Windows RE disabled." -Type "INFO" -Color Gray
-    } catch { Write-Log -Message "reagentc disable failed: $_" -Type "WARN" -Color Yellow }
-    Write-Log -Message "Safe Mode & Recovery mitigation applied." -Type "SUCCESS" -Color Green
-}
-
-function Remove-SafeModeMitigation {
-    try {
-        & bcdedit /set "{current}" recoveryenabled Yes | Out-Null
-        Write-Log -Message "bcdedit: recoveryenabled restored to Yes." -Type "INFO" -Color Gray
-    } catch {}
-    try {
-        & reagentc /enable | Out-Null
-        Write-Log -Message "reagentc: Windows RE enabled." -Type "INFO" -Color Gray
-    } catch {}
-    Write-Log -Message "Safe Mode & Recovery mitigation removed." -Type "INFO" -Color Gray
-}
-
-function Apply-ShadowCopyCleanup {
-    Write-Log -Message "Deleting all Volume Shadow Copies (bypass prevention)..." -Type "ACTION" -Color Magenta
-    try {
-        & vssadmin delete shadows /all /Quiet | Out-Null
-        Write-Log -Message "Shadow copies deleted." -Type "SUCCESS" -Color Green
-    } catch {
-        Write-Log -Message "Failed to delete shadow copies: $_" -Type "WARN" -Color Yellow
-    }
-}
-
-function Apply-FileAssociationBlock {
-    foreach ($item in $script:BlockedExtensions) {
-        $path = "HKLM:\SOFTWARE\Classes\$($item.Ext)"
-        if (Test-Path $path) {
-            try {
-                $current = (Get-ItemProperty -Path $path -Name "(Default)" -ErrorAction SilentlyContinue)."(Default)"
-                if ($current -and $current -ne "txtfile") {
-                    Set-ItemProperty -Path $path -Name "OSGuardOriginalProgID" -Value $current -Type String -Force -ErrorAction SilentlyContinue
-                }
-                Set-ItemProperty -Path $path -Name "(Default)" -Value "txtfile" -Type String -Force -ErrorAction Stop
-                Write-Log -Message "Blocked $($item.Ext) execution (assoc -> txtfile)." -Type "INFO" -Color Gray
-            } catch {
-                Write-Log -Message "Failed to block $($item.Ext): $_" -Type "WARN" -Color Yellow
-            }
-        }
-    }
-    Write-Log -Message "File association lockdown applied." -Type "SUCCESS" -Color Green
-}
-
-function Remove-FileAssociationBlock {
-    foreach ($item in $script:BlockedExtensions) {
-        $path = "HKLM:\SOFTWARE\Classes\$($item.Ext)"
-        if (Test-Path $path) {
-            try {
-                $original = (Get-ItemProperty -Path $path -Name "OSGuardOriginalProgID" -ErrorAction SilentlyContinue)."OSGuardOriginalProgID"
-                if ($original) {
-                    Set-ItemProperty -Path $path -Name "(Default)" -Value $original -Type String -Force -ErrorAction SilentlyContinue
-                    Remove-ItemProperty -Path $path -Name "OSGuardOriginalProgID" -Force -ErrorAction SilentlyContinue
-                } else {
-                    Set-ItemProperty -Path $path -Name "(Default)" -Value $item.Original -Type String -Force -ErrorAction SilentlyContinue
-                }
-                Write-Log -Message "Restored $($item.Ext) association." -Type "INFO" -Color Gray
-            } catch {}
-        }
-    }
-    Write-Log -Message "File association lockdown removed." -Type "INFO" -Color Gray
-}
-
 function Apply-BypassMitigations {
-    Write-Log -Message "Applying OS-Guard Bypass Mitigations..." -Type "ACTION" -Color Cyan
+    Write-Log -Message "Applying OS-Guard Bypass Mitigations (child-specific)..." -Type "ACTION" -Color Cyan
     Apply-FolderExecutionDeny
-    Apply-IFEOBackdoorBlock
-    Apply-EdgeBypassBlocklist
-    Apply-BypassHKLM
-    Apply-SafeModeMitigation
-    Apply-ShadowCopyCleanup
-    Apply-FileAssociationBlock
-    Write-Log -Message "Bypass Mitigations applied." -Type "SUCCESS" -Color Green
+
+    # Apply file association block to child hive (offline + live session)
+    $HiveMount = Mount-ChildHive
+    if ($HiveMount) {
+        Apply-ChildFileAssociationBlock -HiveMount $HiveMount
+        Dismount-ChildHive -HiveMount $HiveMount
+    } else {
+        Write-Log -Message "Child hive not available for file association block." -Type "WARN" -Color Yellow
+    }
+    $ChildSidValue = Get-ChildSid
+    if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue")) {
+        Apply-ChildFileAssociationBlock -HiveMount $ChildSidValue
+    }
+
+    Write-Log -Message "Bypass Mitigations applied (child-specific)." -Type "SUCCESS" -Color Green
 }
 
 function Remove-BypassMitigations {
-    Write-Log -Message "Removing OS-Guard Bypass Mitigations..." -Type "ACTION" -Color Cyan
+    Write-Log -Message "Removing OS-Guard Bypass Mitigations (child-specific)..." -Type "ACTION" -Color Cyan
     Remove-FolderExecutionDeny
-    Remove-IFEOBackdoorBlock
-    Remove-EdgeBypassBlocklist
-    Remove-BypassHKLM
-    Remove-SafeModeMitigation
-    Remove-FileAssociationBlock
-    Write-Log -Message "Bypass Mitigations removed." -Type "SUCCESS" -Color Green
+
+    # Remove file association block from child hive (live + offline)
+    $ChildSidValue = Get-ChildSid
+    $LiveHive = $null
+    if ($ChildSidValue -and (Test-Path "Registry::HKEY_USERS\$ChildSidValue")) {
+        $LiveHive = $ChildSidValue
+    }
+    $OfflineHive = $null
+    if (-not $LiveHive) {
+        $OfflineHive = Mount-ChildHive
+    }
+    if ($LiveHive) {
+        Remove-ChildFileAssociationBlock -HiveMount $LiveHive
+    }
+    if ($OfflineHive) {
+        Remove-ChildFileAssociationBlock -HiveMount $OfflineHive
+        Dismount-ChildHive -HiveMount $OfflineHive
+    }
+
+    Write-Log -Message "Bypass Mitigations removed (child-specific)." -Type "SUCCESS" -Color Green
 }
 
 # ============================================================================
@@ -4799,6 +4720,14 @@ if ($ChildLock) {
     Set-ItemProperty -Path $GpoPath -Name "NC_LanProperties" -Value 0 -Force -ErrorAction SilentlyContinue
     Set-ItemProperty -Path $GpoPath -Name "NC_LanChangeProperties" -Value 0 -Force -ErrorAction SilentlyContinue
     Set-ItemProperty -Path $GpoPath -Name "NC_AllowAdvancedTCPIPConfig" -Value 0 -Force -ErrorAction SilentlyContinue
+
+    # Create child-facing shortcuts and apply bypass mitigations only when child actually logs in
+    Set-ChildLogoutShortcut
+    New-ChildGameRequestShortcut
+    New-BrowserRequestShortcut
+    Apply-FolderExecutionDeny
+    Apply-ChildFileAssociationBlock -HiveMount (Get-ChildSid)
+
     return
 }
 

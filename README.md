@@ -102,17 +102,14 @@ Built-in Administrator retains full privileges to install, modify, and unlock.
 || **Wi-Fi SSID Geofencing** | `-HomeSSID "MyHomeWiFi"` auto-enables stricter lockdown (browser/game kill + firewall blocks) when the PC is not connected to the home network. |
 || **First Run Wizard** | `Show-SetupWizard` is a WinForms dialog that asks for child username, daily screen time limits, then auto-deploys. Removes the "read the menu" barrier. |
 || **Program Guardian Engine** | Scheduled task `OSGuard-ProgramScanner` scans the child profile every 10 minutes for newly installed programs, hardens their directories and shortcuts so the child cannot tamper with them, and blocks 50+ Windows built-in exploit tools via `DisallowRun` registry policies (Notepad, WordPad, Paint, Write, Explorer, PowerShell, pwsh, CMD, WSH, SmartScreen, Fast User Switching). |
-|| **Bypass Mitigation Layer** | `Apply-BypassMitigations` blocks 146+ `DisallowRun` entries (PowerShell ISE, Windows Terminal, VS Code, Python, Node, Java, .NET, Docker, winget, Steam, Epic, Origin, Uplay, Battle.net, Discord, Telegram, AnyDesk, TeamViewer, RDP, VirtualBox, VMware, QEMU, PuTTY, WinSCP, FileZilla, VPN clients, OpenSSH, WSL, bash, Hyper-V, UAC bypass binaries, Terminal Server tools, Snipping Tool, Cortana, Search, Game Bar, Xbox apps, collaboration apps, cloud gaming, remote desktop). Also blocks cloud gaming/remote shell/IDE URLs in Edge (`URLBlocklist`), disables IFEO backdoors (sethc, utilman, osk, magnify, narrator), denies ExecuteFile ACL on child Desktop/Downloads/Temp/WindowsApps, remaps `.scr`/`.com`/`.pif` to `txtfile`, disables WSL service, disables Safe Mode recovery (`bcdedit`/`reagentc`), and deletes volume shadow copies. |
-|| **Edge URL Blocklist** | 40+ cloud gaming, remote shell, and IDE URLs are blocked in Edge (`xbox.com/play`, `play.geforcenow.com`, `shell.cloud.google.com`, `github.com/codespaces`, `replit.com`, `vscode.dev`, `anydesk.com`, `teamviewer.com`, `discord.com`, `web.telegram.org`, and more). |
-|| **IFEO Backdoor Block** | Sets `Debugger` to `systray.exe` for `sethc.exe`, `utilman.exe`, `osk.exe`, `magnify.exe`, `narrator.exe`, and `DisplaySwitch.exe` to prevent accessibility backdoor exploits. |
-|| **Folder Execution Deny** | Denies `ExecuteFile` ACL on the child's Desktop, Documents, Downloads, Music, Pictures, Videos, `AppData\Local\Temp`, and `AppData\Local\Microsoft\WindowsApps` to prevent running downloaded/portable executables. |
-|| **File Association Lockdown** | Remaps `.scr`, `.com`, and `.pif` file associations to `txtfile` so they cannot execute as programs. Original associations are backed up and restored on removal. |
-|| **Safe Mode Mitigation** | `bcdedit` sets `bootmenupolicy standard`, disables `recoveryenabled`, and `reagentc /disable` disables Windows Recovery Environment to prevent Safe Mode bypass. |
-|| **Shadow Copy Cleanup** | `vssadmin delete shadows /all` removes all volume shadow copies to prevent restoration of unhardened system states. |
-|| **WSL Disablement** | Sets `LxssManager` service `Start = 4` (Disabled) and stops the service to prevent Linux subsystem bypass. |
-|| **Game DVR / Game Bar Block** | `HKLM` policies disable `AllowGameDVR`, `AllowOpenGameBar`, `AllowGameDVRRecording`, and `AllowGameDVRCapture` to prevent Xbox/Game Bar bypass. |
-|| **Cortana / Web Search Block** | `AllowCortana = 0`, `DisableWebSearch = 1`, and `ConnectedSearchUseWeb = 0` prevent search-based bypass and web results from the Start Menu. |
-|| **AppInstaller / winget Block** | `EnableAppInstaller = 0` and `EnableWindowsPackageManager = 0` prevent package-manager-based software installation. |
+|| **Bypass Mitigation Layer (Child-Only)** | `Apply-BypassMitigations` applies 146+ `DisallowRun` entries (PowerShell ISE, Windows Terminal, VS Code, Python, Node, Java, .NET, Docker, winget, Steam, Epic, Origin, Uplay, Battle.net, Discord, Telegram, AnyDesk, TeamViewer, RDP, VirtualBox, VMware, QEMU, PuTTY, WinSCP, FileZilla, VPN clients, OpenSSH, bash, Hyper-V, UAC bypass binaries, Terminal Server tools, Snipping Tool, Cortana, Search, Game Bar, Xbox apps, collaboration apps, cloud gaming, remote desktop) directly into the child's HKCU hive. Also blocks cloud gaming/remote shell/IDE URLs in Edge via child-only `URLBlocklist`, disables IFEO backdoors via child `DisallowRun` (sethc, utilman, osk, magnify, narrator, DisplaySwitch), denies `ExecuteFile` ACL on child Desktop/Downloads/Temp/WindowsApps, and remaps child-only `.scr`/`.com`/`.pif` file associations to `txtfile`. All bypass mitigations are child-specific; the admin (`fb`) account is unaffected. |
+|| **Edge URL Blocklist (Child-Only)** | 40+ cloud gaming, remote shell, and IDE URLs are blocked in Edge under the child's HKCU (`xbox.com/play`, `play.geforcenow.com`, `shell.cloud.google.com`, `github.com/codespaces`, `replit.com`, `vscode.dev`, `anydesk.com`, `teamviewer.com`, `discord.com`, `web.telegram.org`, and more). Admin browsing is unaffected. |
+|| **IFEO Backdoor Block (Child-Only)** | Child `DisallowRun` entries block `sethc.exe`, `utilman.exe`, `osk.exe`, `magnify.exe`, `narrator.exe`, and `DisplaySwitch.exe` to prevent accessibility backdoor exploits from the child's session. |
+|| **Folder Execution Deny (Child-Only)** | Denies `ExecuteFile` ACL on the child's Desktop, Documents, Downloads, Music, Pictures, Videos, `AppData\Local\Temp`, and `AppData\Local\Microsoft\WindowsApps` to prevent running downloaded/portable executables. Admin directories are unaffected. |
+|| **File Association Lockdown (Child-Only)** | Remaps `.scr`, `.com`, and `.pif` file associations to `txtfile` inside the child's HKCU so they cannot execute as programs from the child's session. Original associations are backed up and restored on removal. |
+|| **Game DVR / Game Bar Block (Child-Only)** | Child HKCU policies disable `AllowGameDVR`, `AllowOpenGameBar`, `AllowGameDVRRecording`, and `AllowGameDVRCapture` to prevent Xbox/Game Bar bypass from the child's session. |
+|| **Cortana / Web Search Block (Child-Only)** | `AllowCortana = 0`, `DisableWebSearch = 1`, and `ConnectedSearchUseWeb = 0` are injected into the child's HKCU to prevent search-based bypass and web results from the Start Menu. |
+|| **AppInstaller / winget Block (Child-Only)** | `EnableAppInstaller = 0` and `EnableWindowsPackageManager = 0` are injected into the child's HKCU to prevent package-manager-based software installation from the child's session. |
 
 |---
 
@@ -130,13 +127,10 @@ flowchart TB
         B2[HKCU Policies via NTUSER.DAT]
         B3[146+ DisallowRun Exploit Blocks]
         B4[Edge-Only Browser Lockdown]
-        B5[Edge URL Blocklist]
-        B6[IFEO Backdoor Block]
-        B7[Folder Execution Deny]
-        B8[File Association Lockdown]
-        B9[Safe Mode Mitigation]
-        B10[Shadow Copy Cleanup]
-        B11[WSL Disablement]
+        B5[Edge URL Blocklist (Child)]
+        B6[IFEO Backdoor Block (Child)]
+        B7[Folder Execution Deny (Child)]
+        B8[File Association Lockdown (Child)]
     end
     subgraph Layer3["Layer 3: Persistence & Self-Healing"]
         C1[Scheduled Tasks: Boot + Logon + Network]
@@ -286,18 +280,19 @@ When you run `new2_OS_lockdown.ps1 -Install`, the script performs a systematic, 
 - Password changes are blocked via `net user Child /passwordchg:no /passwordreq:no`.
 - Injects machine-wide (HKLM) policies: UAC maxed (`EnableLUA = 1`, `ConsentPromptBehaviorAdmin = 2`, `PromptOnSecureDesktop = 1`), Windows Store removed (`RemoveWindowsStore = 1`), Windows Installer blocked for standard users (`DisableMSI = 2`, `DisableUserInstalls = 2`), USB storage disabled (`USBSTOR Start = 4`), Windows Script Host disabled (`wscript.exe` / `cscript.exe`), SmartScreen enforced at `Block` level, Fast User Switching disabled, and Windows Update UI blocked.
 - Injects per-user (HKCU) policies into the child's registry hive: Task Manager disabled (`DisableTaskMgr = 1`), Registry Editor disabled (`DisableRegistryTools = 1`), Command Prompt disabled (`DisableCMD = 2`), Run dialog blocked (`NoRun = 1`), Control Panel & Settings hidden (`NoControlPanel = 1`), wallpaper and theme changes blocked, AutoPlay disabled (`NoDriveTypeAutoRun = 255`), Administrative Tools hidden from Start Menu, Add/Remove Programs blocked, password change blocked, Network Connections UI grayed out, right-click context menu disabled, Folder Options hidden, taskbar changes blocked, printer add/remove blocked, and the "This PC" icon hidden from desktop and Start Menu.
-- Mounts the child's `NTUSER.DAT` offline (via `reg load`) to enforce HKCU policies even when the child is not currently logged in, ensuring restrictions survive reboots and logouts.
+|- Mounts the child's `NTUSER.DAT` offline (via `reg load`) to enforce HKCU policies even when the child is not currently logged in, ensuring restrictions survive reboots and logouts.
+|- **Child-facing shortcuts are deferred** until the child actually logs in: `Browser Request.lnk`, `Game Request.lnk`, and the admin-approval `Log out` shortcut are created by the `OSGuard-ChildLogon` scheduled task rather than at install time, so they land in the correct profile. Admin-facing shortcuts (`Parent Mode`, `Grant Browser Time`, `Lock Now`, `Continue Parent Mode`) are still created immediately at install.
 
 **Phase 4 — Browser Lockdown**
 - Adds `DisallowRun` entries 51–58 to block `chrome.exe`, `firefox.exe`, `brave.exe`, `opera.exe`, `vivaldi.exe`, `waterfox.exe`, `tor.exe`, and `iexplore.exe`. Only Microsoft Edge remains allowed.
-- Applies deep Edge machine policies: `BookmarkBarEnabled = 0`, `InPrivateModeAvailability = 1`, `DeveloperToolsAvailability = 2`, `DownloadRestrictions = 3`, `SyncDisabled = 1`, `PasswordManagerEnabled = 0`, `ExtensionInstallBlocklist = *`, and a URL blocklist covering `edge://settings`, `edge://extensions`, `edge://flags`, `edge://policy`, and `edge://downloads`. This strips Edge down to a minimal browsing surface where the child cannot install extensions, manage passwords, download files, open dev tools, or use incognito mode.
+|- Applies deep Edge machine policies (HKLM) to disable bookmarks, incognito, dev tools, downloads, sync, password manager, and extensions for all users. Additional child-only HKCU Edge policies block a URL list covering `edge://settings`, `edge://extensions`, `edge://flags`, `edge://policy`, and `edge://downloads` so the child cannot reach these pages even if the machine-wide policy is temporarily altered.
 
 **Phase 5 — Screen Time Engine**
 - Writes a default `ScreenTime.json` configuration to `C:\ProgramData\OSGuard` with admin-configurable daily start/end hours, daily maximum minutes, and browser-specific maximum minutes.
 - Writes a `ScreenTimeTracker.json` that records daily usage, browser-specific usage, and any granted session allowances.
 - Hardens both JSON files with ACLs: `SYSTEM:FullControl`, `Administrators:Read`, `Child:Deny`.
 - Creates `BrowserLauncher.ps1` on the child's desktop. When the child clicks it, the launcher checks the screen time limit before opening Edge. If time is exhausted, it shows a tamper-proof popup explaining the limit.
-- Creates `Browser Request.lnk` on the child's desktop so the child can request a browser session, but the request itself goes nowhere without admin action.
+|- The `Browser Request.lnk` shortcut is placed on the child's desktop by the `OSGuard-ChildLogon` task when the child first logs in (deferred from install time), so it always lands in the correct profile.
 - Creates `Grant Browser Time.lnk` on the administrator's desktop. This shortcut requires the Parent Mode password and lets the admin grant 15, 30, 60, or 120 minutes of temporary browser time.
 - Registers the `OSGuard-ScreenTime` scheduled task, which runs every minute as `NT AUTHORITY\SYSTEM` with the `-ScreenTimeEnforce` flag. The task tracks active Edge processes, updates the tracker, and forcefully terminates Edge if the daily or browser-specific limit is exceeded.
 
@@ -377,7 +372,7 @@ The script is organized into modular functions rather than a linear execution fl
 
 ### What This Script Is NOT
 
-- It is **not** a kernel-level security boundary. A determined attacker with physical access or a live USB can still bypass it. Safe Mode bypass is partially mitigated by `-BypassMitigation` (disables recovery and standard boot menu), but a live USB or bootable ISO bypasses everything.
+- It is **not** a kernel-level security boundary. A determined attacker with physical access, a live USB, or Safe Mode can still bypass it. A bootable ISO bypasses all protections.
 - It is **not** a replacement for enterprise MDM or Active Directory Group Policy. It is a local-only enforcement layer.
 - It is **not** anti-malware. It does not scan for viruses or ransomware. It restricts the operating system surface area to reduce the child's ability to cause harm or bypass network protections.
 - It does **not** block the internet. It locks DNS to trusted servers and blocks alternative browsers, but the child can still browse the web through Edge within the configured screen time limits.
@@ -451,7 +446,7 @@ After installation, the global `oslock` command is available from any terminal:
 || `-BrandingOrg <name>` | Set white-label branding (default: `OS-Guard`) | Admin |
 || `-HomeSSID <name>` | Set home Wi-Fi SSID for geofencing | Admin |
 || `-ChildUsers <array>` | Multi-child support: apply to multiple usernames | Admin |
-|| `-BypassMitigation` | Apply bypass mitigation layer (IFEO, ACLs, URLs, Safe Mode, Shadow Copy) | Admin |
+||| `-BypassMitigation` | Apply child-only bypass mitigation layer (DisallowRun, Edge URL blocklist, folder ACLs, file associations) | Admin |
 || `-RemoveBypassMitigation` | Remove bypass mitigation layer | Admin |
 
 **Uninstall from a SYSTEM shell:**
@@ -612,13 +607,13 @@ Get-ScheduledTask | Where-Object {$_.TaskPath -eq '\' -and $_.Author -notmatch '
 - **Captive portals** (hotels, airports) may fail if you use static DNS. Unlock temporarily with option `[2]`, log in, then re-lock with `[1]`.
 - **Corporate VPNs** (Cisco, Fortinet) that rewrite adapter DNS may conflict with the lock. WFP-based VPNs (Proton) are unaffected.
 - **Admin attacker with `takeown` / `psexec -s`** can still bypass the script. This is a Windows discretionary ACL limitation, not a script flaw. The script raises the effort required but does not create a kernel-level security boundary.
-- **Offline boot** (live USB, Safe Mode) bypasses all protections unless `-BypassMitigation` is applied (Safe Mode mitigation disables recovery and standard boot menu, but a live USB still bypasses everything).
+- **Offline boot** (live USB, Safe Mode) bypasses all protections. A bootable ISO bypasses everything.
 - **Child account must log in once** before offline NTUSER.DAT hive policies can be applied. If the child has never logged in, the `ChildLogon` scheduled task will apply HKCU policies at the first logon.
 - **Windows 10/11 Home** may not have `Get-LocalUser` / `New-LocalUser` cmdlets available in older builds; the script falls back to `net user` where possible.
 - **Program Guardian** only discovers programs already installed in the child profile at scan time; it does not prevent the child from running portable executables stored outside scanned directories. Admins should install software into the child Desktop, Start Menu, or `AppData\Local\Programs` so the engine can find and harden it.
 - **Parent Mode Window Guard** is a best-effort heuristic: it polls every 5 seconds for new visible processes while Parent Mode is active. A determined child who can quickly interact with a newly opened window before the guard detects it may bypass the prompt. The guard catches most accidental or slow interactions.
 - **DisallowRun** blocks 50+ exact executable names (including `powershell.exe`, `pwsh.exe`, `cmd.exe`, `mshta.exe`, `mmc.exe`, `eventvwr.exe`, `fodhelper.exe`, etc.). A determined attacker can rename a copy of these tools, but this defeats casual child tampering. The shell blocks launches from Run dialog, Start menu, and double-click; already-running processes are not terminated.
-- **Edge-Only Lockdown** blocks other browsers via `DisallowRun` 51-58. A child could still use Edge WebView or rename a blocked binary, but casual browsing is restricted to Edge only. Edge policies can be overridden by a user with local admin rights or by booting into Safe Mode.
+- **Edge-Only Lockdown** blocks other browsers via `DisallowRun` 51-58 in the child hive. A child could still use Edge WebView or rename a blocked binary, but casual browsing is restricted to Edge only. Edge policies can be overridden by a user with local admin rights.
 - **Screen Time Engine** tracks usage via a JSON tracker under `C:\ProgramData\OSGuard`. A child with local admin rights or SYSTEM access could delete or edit the tracker. The engine is best-effort and relies on the `OSGuard-ScreenTime` scheduled task running every minute. If the task is stopped, enforcement is delayed until the next minute.
 
 ---
@@ -691,7 +686,8 @@ This section tracks upcoming and recently merged changes before they are tagged 
 |- **Write-Log Directory Recreate Fix** (2026-07-01): Fixed the root cause of the uninstaller falsely reporting `Install directory still exists`. `Write-Log` was auto-creating `$InstallDir` whenever it was missing, which meant that after `Uninstall-Persistence` deleted the directory, any subsequent `Write-Log` call silently recreated it. Added a `$script:SuppressLogDirCreation` flag that is set to `$true` at the start of `Uninstall-Persistence` and reset to `$false` after the final verification, preventing `Write-Log` from recreating the directory during uninstall. Also hardened `Write-Log` to only write to the log file if the directory actually exists.
 |- **Memorable Password Generation** (2026-07-01): Replaced the random 12-character alphanumeric default password with a human-memorable passphrase generator (`New-MemorablePassword`). Passwords now use a common English word + 2-digit number + an easy symbol from a reduced keyboard-safe set (`! # $ % & + - = ? _ @`), assembled in a random order pattern (e.g., `Dragon42!`, `!42Dragon`, `42!Dragon`). `Set-ParentPassword` displays three live suggestions before prompting. Minimum length reduced from 8 to 6 characters with relaxed complexity rules (`Test-PasswordComplexity`: requires at least one letter and one number). The default install password, tamper lockout screen, and window guard all use the new memorable format.
 ||- **Menu Option [4] Conditional Visibility** (2026-07-01): The `[4] UNINSTALL SERVICE` menu option is now hidden when the script is not installed (i.e., `$InstallScript` does not exist), and only appears when the service is detected. This mirrors the existing behavior of option `[3] INSTALL SERVICE`, which is hidden when already installed.
-||- **Bypass Mitigation Layer** (2026-07-01): Added `-BypassMitigation` and `-RemoveBypassMitigation` flags plus interactive menu options `[9]` and `[10]`. The layer includes 146+ `DisallowRun` entries (IDEs, terminals, remote tools, VPNs, game launchers, cloud gaming, UAC bypass binaries), Edge URL blocklist (40+ cloud gaming/remote shell/IDE URLs), IFEO backdoor block (`sethc`, `utilman`, `osk`, `magnify`, `narrator`, `DisplaySwitch`), folder execution deny ACLs on child Desktop/Downloads/Temp/WindowsApps, file association lockdown (`.scr`/`.com`/`.pif` remapped to `txtfile`), Safe Mode mitigation (`bcdedit` bootmenupolicy standard + recovery disabled + `reagentc /disable`), volume shadow copy cleanup (`vssadmin delete shadows /all`), WSL service disable (`LxssManager Start=4`), Game DVR/Game Bar block, Cortana/web search block, AppInstaller/winget block, and `DisableSearchBoxSuggestions` in the child hive.
+|||- **Bypass Mitigation Layer (Child-Only)** (2026-07-02): Replaced machine-wide bypass functions (IFEO, Safe Mode, Shadow Copy, WSL) with child-specific bypass mitigations. All 146+ `DisallowRun` entries, Edge URL blocklist, IFEO backdoor blocks, folder execution deny ACLs, and file association lockdown now target only the child's HKCU hive via `$ChildHivePolicies`. Admin (`fb`) account is completely unaffected. Removed: `Apply-IFEOBackdoorBlock`, `Remove-IFEOBackdoorBlock`, `Apply-EdgeBypassBlocklist`, `Remove-EdgeBypassBlocklist`, `Apply-BypassHKLM`, `Remove-BypassHKLM`, `Apply-SafeModeMitigation`, `Remove-SafeModeMitigation`, `Apply-ShadowCopyCleanup`, `Apply-FileAssociationBlock`, `Remove-FileAssociationBlock`. Added: `Apply-ChildFileAssociationBlock`, `Remove-ChildFileAssociationBlock`, `Apply-FolderExecutionDeny`, `Remove-FolderExecutionDeny`, `Apply-BypassMitigations`, `Remove-BypassMitigations`. 
+|||- **Deferred Child Shortcuts** (2026-07-02): Child-facing shortcuts (`Browser Request.lnk`, `Game Request.lnk`, admin-approval `Log out`) are no longer created at install time. They are deferred to the `OSGuard-ChildLogon` scheduled task so they are created only when the child actually logs in, ensuring they land in the correct profile and do not break if the child has not logged in yet. Admin-facing shortcuts (`Parent Mode`, `Grant Browser Time`, `Lock Now`, `Continue Parent Mode`) are still created immediately at install.
 
 ---
 
